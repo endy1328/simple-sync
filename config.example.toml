@@ -1,0 +1,11 @@
+interval_seconds = 10
+
+[[pairs]]
+enabled = true
+source = "C:\\source"
+target = "D:\\backup"
+
+[[pairs]]
+enabled = false
+source = "C:\\another-source"
+target = "D:\\another-backup"

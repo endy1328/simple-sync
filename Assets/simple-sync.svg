@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="simple sync app icon">
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="224" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#13B8A6"/>
+      <stop offset="0.58" stop-color="#2176FF"/>
+      <stop offset="1" stop-color="#3843D0"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="73" y1="54" x2="182" y2="181" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DCEBFF"/>
+    </linearGradient>
+    <linearGradient id="folder" x1="43" y1="93" x2="190" y2="202" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE58C"/>
+      <stop offset="1" stop-color="#FFB020"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#092047" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <circle cx="202" cy="54" r="23" fill="#FFFFFF" opacity="0.18"/>
+  <circle cx="45" cy="198" r="31" fill="#081A3A" opacity="0.12"/>
+
+  <g filter="url(#shadow)">
+    <path d="M68 62C68 55.4 73.4 50 80 50H146L178 82V170C178 176.6 172.6 182 166 182H80C73.4 182 68 176.6 68 170V62Z" fill="url(#paper)"/>
+    <path d="M146 50V78C146 84.6 151.4 90 158 90H178L146 50Z" fill="#BFD7FF"/>
+    <path d="M48 100C48 92.3 54.3 86 62 86H105L121 103H188C195.7 103 202 109.3 202 117V183C202 190.7 195.7 197 188 197H62C54.3 197 48 190.7 48 183V100Z" fill="url(#folder)"/>
+    <path d="M48 128H202V184C202 191.2 196.2 197 189 197H61C53.8 197 48 191.2 48 184V128Z" fill="#FFCA3A"/>
+  </g>
+
+  <path d="M103 151H159" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round"/>
+  <path d="M143 127L169 151L143 175" fill="none" stroke="#FFFFFF" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M102 151H158" stroke="#1155CC" stroke-width="7" stroke-linecap="round" opacity="0.55"/>
+  <path d="M142 128L166 151L142 174" fill="none" stroke="#1155CC" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity="0.55"/>
+</svg>

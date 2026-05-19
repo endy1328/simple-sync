@@ -1,0 +1,23 @@
+# Build outputs
+bin/
+obj/
+artifacts/
+
+# User and local machine state
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# Runtime configuration generated beside the executable
+config.toml
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+
+# Extracted verification assets
+Assets/extracted-app-icon.png
