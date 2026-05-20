@@ -43,10 +43,13 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Add at least two enabled pairs and confirm both are saved.
 - Click `Now` and confirm changed files copy from source to target.
 - Confirm unchanged files are skipped on the next run.
+- Confirm the default `Copy changes` mode preserves files that exist only in the target.
+- Set one pair to `Mirror source` and confirm target-only files are deleted only after source files copy successfully.
 - Disable one pair and confirm it is not processed.
 - Set a missing source path and confirm the app logs the issue.
 - Set a target path inside its source and confirm the app skips it.
 - Change the interval and confirm the value is saved to `config.toml`.
+- Change a pair mode and confirm `mode = "copy"` or `mode = "mirror"` is saved to `config.toml`.
 
 ## Config Location
 

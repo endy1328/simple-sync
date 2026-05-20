@@ -56,6 +56,16 @@ public sealed class ConfigService
                 {
                     config.Skin = Unquote(value);
                 }
+                else if (key.Equals("window_width", StringComparison.OrdinalIgnoreCase) &&
+                    int.TryParse(value, out var width))
+                {
+                    config.WindowWidth = Math.Clamp(width, 860, 10_000);
+                }
+                else if (key.Equals("window_height", StringComparison.OrdinalIgnoreCase) &&
+                    int.TryParse(value, out var height))
+                {
+                    config.WindowHeight = Math.Clamp(height, 560, 10_000);
+                }
                 continue;
             }
 
@@ -63,6 +73,14 @@ public sealed class ConfigService
                 bool.TryParse(value, out var enabled))
             {
                 currentPair.Enabled = enabled;
+            }
+            else if (key.Equals("name", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.Name = Unquote(value);
+            }
+            else if (key.Equals("mode", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.Mode = SyncModes.Normalize(Unquote(value));
             }
             else if (key.Equals("source", StringComparison.OrdinalIgnoreCase))
             {
@@ -82,12 +100,16 @@ public sealed class ConfigService
         var builder = new StringBuilder();
         builder.AppendLine($"interval_seconds = {Math.Clamp(config.IntervalSeconds, 1, 86_400)}");
         builder.AppendLine($"skin = \"{Escape(config.Skin)}\"");
+        builder.AppendLine($"window_width = {Math.Clamp(config.WindowWidth, 860, 10_000)}");
+        builder.AppendLine($"window_height = {Math.Clamp(config.WindowHeight, 560, 10_000)}");
         builder.AppendLine();
 
         foreach (var pair in config.Pairs)
         {
             builder.AppendLine("[[pairs]]");
+            builder.AppendLine($"name = \"{Escape(pair.Name)}\"");
             builder.AppendLine($"enabled = {pair.Enabled.ToString().ToLowerInvariant()}");
+            builder.AppendLine($"mode = \"{Escape(SyncModes.Normalize(pair.Mode))}\"");
             builder.AppendLine($"source = \"{Escape(pair.Source)}\"");
             builder.AppendLine($"target = \"{Escape(pair.Target)}\"");
             builder.AppendLine();
@@ -125,8 +147,9 @@ public sealed class ConfigService
         return value.Replace("\\\"", "\"").Replace("\\\\", "\\");
     }
 
-    private static string Escape(string value)
+    private static string Escape(string? value)
     {
+        value ??= string.Empty;
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 }

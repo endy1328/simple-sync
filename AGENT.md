@@ -5,13 +5,15 @@ When this file changes, update `AGENT_kor.md` in the same change.
 
 ## Project Goal
 
-Build and maintain a simple Windows application named `simple sync` that copies changed files from configured source directories to target directories.
+Build and maintain a simple Windows application named `simple sync` that synchronizes files from configured source directories to target directories.
 
 ## Working Rules
 
 - Keep the app simple and local-first.
 - Preserve one-way copy behavior from source to target.
-- Do not add target deletion or two-way sync unless explicitly requested.
+- Pair mode defaults to `copy`, which copies new or changed files and preserves target-only files.
+- `mirror` mode is allowed only as an explicit per-pair option and deletes target-only files after a successful copy pass.
+- Do not add two-way sync unless explicitly requested.
 - Keep settings in `config.toml` beside the executable.
 - Keep README and harness documents current after implementation changes.
 - Avoid overwriting user changes that are unrelated to the current task.
@@ -22,7 +24,8 @@ Build and maintain a simple Windows application named `simple sync` that copies 
 - Reject or skip a target path that is the same as the source or inside the source.
 - Treat missing sources, locked files, and permission errors as reportable sync failures.
 - Continue processing other files and pairs after recoverable file system errors.
-- Do not make destructive file operations part of sync behavior.
+- Keep destructive file operations limited to explicit `mirror` mode.
+- Skip mirror deletion if source traversal or copy fails for that pair.
 
 ## Documentation Rule
 

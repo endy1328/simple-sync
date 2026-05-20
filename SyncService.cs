@@ -15,7 +15,10 @@ public sealed class SyncService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (string.IsNullOrWhiteSpace(pair.Source) || string.IsNullOrWhiteSpace(pair.Target))
+            var source = pair.Source ?? string.Empty;
+            var target = pair.Target ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(target))
             {
                 result.Messages.Add("소스 또는 타겟 경로가 비어 있어 건너뜀");
                 continue;
@@ -26,8 +29,8 @@ public sealed class SyncService
 
             try
             {
-                sourceRoot = Path.GetFullPath(pair.Source);
-                targetRoot = Path.GetFullPath(pair.Target);
+                sourceRoot = Path.GetFullPath(source);
+                targetRoot = Path.GetFullPath(target);
             }
             catch (Exception ex) when (IsFileSystemException(ex))
             {
@@ -38,13 +41,13 @@ public sealed class SyncService
 
             if (!Directory.Exists(sourceRoot))
             {
-                result.Messages.Add($"소스 없음: {pair.Source}");
+                result.Messages.Add($"소스 없음: {source}");
                 continue;
             }
 
             if (IsSameOrChildPath(sourceRoot, targetRoot))
             {
-                result.Messages.Add($"타겟이 소스와 같거나 소스 내부에 있어 건너뜀: {pair.Target}");
+                result.Messages.Add($"타겟이 소스와 같거나 소스 내부에 있어 건너뜀: {target}");
                 continue;
             }
 
@@ -59,7 +62,21 @@ public sealed class SyncService
                 continue;
             }
 
+            var failuresBeforePair = result.FailedFiles;
             CopyDirectory(sourceRoot, targetRoot, result, cancellationToken);
+
+            if (SyncModes.Normalize(pair.Mode) != SyncModes.Mirror)
+            {
+                continue;
+            }
+
+            if (result.FailedFiles != failuresBeforePair)
+            {
+                result.Messages.Add("복사 중 실패가 있어 mirror 삭제 단계를 건너뜀");
+                continue;
+            }
+
+            DeleteTargetExtras(sourceRoot, targetRoot, result, cancellationToken);
         }
 
         return result;
@@ -80,6 +97,12 @@ public sealed class SyncService
 
             try
             {
+                var relativeDirectory = Path.GetRelativePath(sourceRoot, currentDirectory);
+                var targetDirectory = relativeDirectory == "."
+                    ? targetRoot
+                    : Path.Combine(targetRoot, relativeDirectory);
+                Directory.CreateDirectory(targetDirectory);
+
                 sourceFiles = Directory.EnumerateFiles(currentDirectory).ToList();
                 childDirectories = Directory.EnumerateDirectories(currentDirectory).ToList();
             }
@@ -125,6 +148,71 @@ public sealed class SyncService
                     result.FailedFiles++;
                     result.Messages.Add($"{relativePath}: {ex.Message}");
                 }
+            }
+        }
+    }
+
+    private static void DeleteTargetExtras(string sourceRoot, string targetRoot, SyncResult result, CancellationToken cancellationToken)
+    {
+        List<string> targetFiles;
+        List<string> targetDirectories;
+
+        try
+        {
+            targetFiles = Directory.EnumerateFiles(targetRoot, "*", SearchOption.AllDirectories).ToList();
+            targetDirectories = Directory.EnumerateDirectories(targetRoot, "*", SearchOption.AllDirectories)
+                .OrderByDescending(path => path.Length)
+                .ToList();
+        }
+        catch (Exception ex) when (IsFileSystemException(ex))
+        {
+            result.FailedFiles++;
+            result.Messages.Add($"mirror 대상 탐색 실패: {ex.Message}");
+            return;
+        }
+
+        foreach (var targetFile in targetFiles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var relativePath = Path.GetRelativePath(targetRoot, targetFile);
+            var sourceFile = Path.Combine(sourceRoot, relativePath);
+            if (File.Exists(sourceFile))
+            {
+                continue;
+            }
+
+            try
+            {
+                File.Delete(targetFile);
+                result.DeletedFiles++;
+            }
+            catch (Exception ex) when (IsFileSystemException(ex))
+            {
+                result.FailedFiles++;
+                result.Messages.Add($"{relativePath}: 삭제 실패 - {ex.Message}");
+            }
+        }
+
+        foreach (var targetDirectory in targetDirectories)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var relativePath = Path.GetRelativePath(targetRoot, targetDirectory);
+            var sourceDirectory = Path.Combine(sourceRoot, relativePath);
+            if (Directory.Exists(sourceDirectory))
+            {
+                continue;
+            }
+
+            try
+            {
+                Directory.Delete(targetDirectory, recursive: true);
+            }
+            catch (Exception ex) when (IsFileSystemException(ex))
+            {
+                result.FailedFiles++;
+                result.Messages.Add($"{relativePath}: 디렉터리 삭제 실패 - {ex.Message}");
             }
         }
     }

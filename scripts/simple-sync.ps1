@@ -27,7 +27,9 @@ function Read-SimpleSyncConfig {
 
         if ($line -ieq "[[pairs]]") {
             $currentPair = [ordered]@{
+                name = ""
                 enabled = $true
+                mode = "copy"
                 source = ""
                 target = ""
             }
@@ -55,6 +57,13 @@ function Read-SimpleSyncConfig {
 
         if ($key -ieq "enabled") {
             $currentPair.enabled = ($value -ieq "true")
+        }
+        elseif ($key -ieq "name") {
+            $currentPair.name = ConvertFrom-TomlString $value
+        }
+        elseif ($key -ieq "mode") {
+            $mode = ConvertFrom-TomlString $value
+            $currentPair.mode = if ($mode -ieq "mirror") { "mirror" } else { "copy" }
         }
         elseif ($key -ieq "source") {
             $currentPair.source = ConvertFrom-TomlString $value
@@ -108,6 +117,8 @@ function Test-IsSameOrChildPath {
 
 function Invoke-SimpleSyncPair {
     param(
+        [string]$Name,
+        [string]$Mode,
         [string]$Source,
         [string]$Target
     )
@@ -129,15 +140,20 @@ function Invoke-SimpleSyncPair {
 
     New-Item -ItemType Directory -Force -Path $Target | Out-Null
 
-    Write-Host "Sync: $Source -> $Target"
-    & robocopy $Source $Target /E /COPY:DAT /DCOPY:T /R:1 /W:1 /NFL /NDL /NP
+    $pairName = if ([string]::IsNullOrWhiteSpace($Name)) { "Pair" } else { $Name }
+    $normalizedMode = if ($Mode -ieq "mirror") { "mirror" } else { "copy" }
+    $robocopyMode = if ($normalizedMode -eq "mirror") { "/MIR" } else { "/E" }
+
+    Write-Host "[$pairName] Mode: $normalizedMode"
+    Write-Host "[$pairName] Sync: $Source -> $Target"
+    & robocopy $Source $Target $robocopyMode /COPY:DAT /DCOPY:T /R:1 /W:1 /NFL /NDL /NP
     $exitCode = $LASTEXITCODE
 
     if ($exitCode -le 7) {
-        Write-Host "Done: robocopy exit code $exitCode"
+        Write-Host "[$pairName] Done: robocopy exit code $exitCode"
     }
     else {
-        Write-Host "Failed: robocopy exit code $exitCode"
+        Write-Host "[$pairName] Failed: robocopy exit code $exitCode"
     }
 }
 
@@ -149,7 +165,7 @@ function Invoke-SimpleSync {
             continue
         }
 
-        Invoke-SimpleSyncPair -Source $pair.source -Target $pair.target
+        Invoke-SimpleSyncPair -Name $pair.name -Mode $pair.mode -Source $pair.source -Target $pair.target
     }
 }
 

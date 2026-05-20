@@ -1,7 +1,11 @@
 # Build outputs
 bin/
 obj/
+
+# Generated installer and publish artifacts
+# Keep installer scripts in git, but do not commit generated setup files.
 artifacts/
+dist/
 
 # User and local machine state
 *.user

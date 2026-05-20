@@ -5,14 +5,20 @@
 ## 주요 기능
 
 - 설정된 소스/타겟 쌍을 지정한 초 단위 간격으로 확인합니다.
-- 소스 전체를 훑되, 타겟에 없거나 변경된 파일만 복사합니다.
+- 소스 전체를 훑되, 타겟에 없거나 변경된 파일만 복사하는 기본 모드를 제공합니다.
+- 동기화 쌍별로 `Copy changes` 또는 `Mirror source` 모드를 선택할 수 있습니다.
 - `A -> B`, `C -> D`처럼 2개 이상의 동기화 쌍을 설정할 수 있습니다.
+- 각 동기화 쌍에 이름을 붙이고 Activity 로그에서 이름으로 구분할 수 있습니다.
 - `Sync Now` 버튼을 누르면 즉시 동기화를 실행합니다.
 - `Add Pair`, `Remove`, `Choose Source`, `Choose Target` 버튼으로 동기화 쌍을 관리합니다.
+- `Sync pairs` 목록의 컬럼 폭을 드래그해서 조절할 수 있고, 긴 경로는 가로 스크롤로 확인할 수 있습니다.
 - `Skin` 콤보박스에서 내장 스킨을 선택할 수 있습니다.
+- `Sync pairs`와 `Activity` 사이의 구분선을 드래그해 영역 높이를 조절할 수 있습니다.
+- 마지막으로 종료한 창 크기를 기억하고 다음 실행 때 같은 크기로 엽니다.
 - 실행 파일 옆의 `config.toml`에서 설정을 불러오고, 화면에서 바뀐 값을 다시 저장합니다.
+- 중복 실행을 막아 같은 앱이 여러 개 떠서 파일을 잠그는 상황을 줄입니다.
 
-이 앱은 타겟 파일을 삭제하지 않으며, 양방향 동기화도 수행하지 않습니다.
+이 앱은 양방향 동기화를 수행하지 않습니다. `Mirror source` 모드에서는 소스에 없는 타겟 파일을 삭제할 수 있으므로 중요한 타겟 폴더에는 주의해서 사용해야 합니다.
 
 ## 실행
 
@@ -61,14 +67,61 @@ PowerShell fallback:
 ```
 
 이 스크립트는 `config.toml`의 `interval_seconds`와 `[[pairs]]` 설정을 읽고 Windows 기본 도구인 `robocopy`를 호출합니다.
+`mode = "copy"`는 robocopy `/E`, `mode = "mirror"`는 robocopy `/MIR`로 실행됩니다.
 
 비상용 robocopy cmd 예제:
 
 ```cmd
-scripts\simple-sync-robocopy.cmd
+scripts\simple-sync-robocopy.cmd "\\wsl.localhost\Ubuntu-24.04\home\u24\projects\spring-lean\docs" "C:\프로젝트 자료\GSNext Phase2\01. 준비"
 ```
 
-`simple-sync-robocopy.cmd`는 파일 안의 `SOURCE`, `TARGET` 값을 직접 수정해서 쓰는 최소 예제입니다.
+`simple-sync-robocopy.cmd`는 경로를 인자로 받는 최소 예제입니다. 인자를 생략하면 파일 안의 fallback `SOURCE`, `TARGET` 값을 사용합니다.
+
+## 설치 프로그램 생성
+
+Windows 설치 프로그램은 Inno Setup 기반으로 생성합니다.
+소스 코드, 아이콘, 스크립트, README, `config.example.toml` 등 설치본에 포함되는 파일이 변경되면 아래 명령을 다시 실행해 `dist\simple-sync-setup.exe`를 새로 생성해야 합니다.
+
+사전 준비:
+
+- Inno Setup 6 설치
+- `ISCC.exe`가 PATH에 있거나 기본 설치 경로에 있어야 합니다.
+
+설치용 self-contained staging 생성:
+
+```powershell
+.\scripts\publish-installer.ps1 -SkipInno
+```
+
+설치 프로그램 생성:
+
+```powershell
+.\scripts\publish-installer.ps1
+```
+
+소스 수정 후 설치본을 갱신할 때도 동일하게 아래 명령만 실행하면 됩니다.
+
+```powershell
+.\scripts\publish-installer.ps1
+```
+
+이 스크립트 안에서 설치본용 `dotnet publish`와 Inno Setup 컴파일을 함께 실행합니다.
+따라서 설치본 생성을 위해 `dotnet publish -c Release -r win-x64 --self-contained false`를 별도로 먼저 실행할 필요는 없습니다.
+
+사전 확인만 하고 싶다면 먼저 빌드만 실행할 수 있습니다.
+
+```powershell
+dotnet build
+```
+
+생성 결과:
+
+```text
+dist\simple-sync-setup.exe
+```
+
+설치 프로그램은 `.NET Windows Desktop Runtime`이 없는 PC에서도 실행되도록 self-contained publish 결과를 포함합니다.
+기존 `dist\simple-sync-setup.exe`가 있어도 스크립트가 최신 publish 결과로 덮어써서 다시 만듭니다.
 
 ## 설정 파일
 
@@ -81,9 +134,13 @@ scripts\simple-sync-robocopy.cmd
 ```toml
 interval_seconds = 10
 skin = "syncback_blue"
+window_width = 1720
+window_height = 1120
 
 [[pairs]]
+name = "Main Backup"
 enabled = true
+mode = "copy"
 source = "C:\\source"
 target = "D:\\backup"
 ```
@@ -105,14 +162,21 @@ target = "D:\\backup"
 ## 동기화 규칙
 
 - 활성화된 동기화 쌍만 처리합니다.
+- 동기화 로그는 `[Pair Name]` prefix와 `Source -> Target` 진행경로로 표시됩니다.
+- 각 동기화 쌍의 `Mode`는 기본값 `Copy changes`입니다.
+- `Copy changes` 모드는 타겟에 없거나 변경된 파일만 복사하고, 타겟에만 있는 파일은 유지합니다.
+- `Mirror source` 모드는 복사 후 소스에 없는 타겟 파일과 디렉터리를 삭제해 두 폴더의 파일 구성을 맞춥니다.
+- 기존 `config.toml`에 `mode`가 없으면 자동으로 `copy`로 처리합니다.
 - 소스와 타겟 경로가 모두 비어 있는 동기화 쌍은 저장하지 않고, 다음 실행 시 표시하지 않습니다.
 - 타겟 디렉터리가 없으면 자동으로 생성합니다.
 - 타겟에 파일이 없으면 복사합니다.
 - 타겟 파일과 소스 파일의 크기가 다르면 복사합니다.
 - 파일 크기가 같아도 마지막 수정 시간이 1초 이상 다르면 복사합니다.
 - 복사 후 타겟 파일의 마지막 수정 시간을 소스 파일과 맞춥니다.
+- `Mirror source` 모드에서도 소스 탐색이나 복사 중 실패가 있으면 안전을 위해 삭제 단계는 건너뜁니다.
 - 타겟 경로가 소스와 같거나 소스 내부인 경우 재귀 복사를 막기 위해 건너뜁니다.
 - 파일 시스템 오류는 앱 로그에 표시되며, 가능한 경우 다른 파일과 다른 동기화 쌍 처리는 계속합니다.
+- 앱 종료 시 자동 실행 타이머를 멈추고 진행 중인 동기화에 취소 신호를 보냅니다.
 
 현재 변경 감지는 파일 내용 해시가 아니라 파일 크기와 마지막 수정 시간 기준입니다.
 
@@ -126,6 +190,8 @@ Git에 포함:
 - `.gitignore`
 - `scripts/simple-sync.ps1`
 - `scripts/simple-sync-robocopy.cmd`
+- `scripts/publish-installer.ps1`
+- `installer/simple-sync.iss`
 - 아이콘 파일과 아이콘 생성 스크립트
 - AI/하네스/인수인계 문서
 
