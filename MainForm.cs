@@ -171,7 +171,6 @@ public sealed class MainForm : Form
         _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _grid.MultiSelect = true;
         _grid.Dock = DockStyle.Fill;
-        _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
         _grid.ScrollBars = ScrollBars.Both;
         _grid.BorderStyle = BorderStyle.None;
         _grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
@@ -196,9 +195,9 @@ public sealed class MainForm : Form
             DisplayMember = nameof(ModeOption.Label),
             FlatStyle = FlatStyle.Flat
         });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", Width = 520, MinimumWidth = 220 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 48, MinimumWidth = 260 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 44, MinimumWidth = 36, SortMode = DataGridViewColumnSortMode.NotSortable, Resizable = DataGridViewTriState.False });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", Width = 620, MinimumWidth = 220 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 52, MinimumWidth = 260 });
         _grid.CellParsing += (_, e) =>
         {
             if (e.RowIndex >= 0 &&
