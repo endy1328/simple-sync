@@ -11,8 +11,10 @@
 - 각 동기화 쌍에 이름을 붙이고 Activity 로그에서 이름으로 구분할 수 있습니다.
 - `Sync Now` 버튼을 누르면 즉시 동기화를 실행합니다.
 - `Add Pair`, `Remove`, `Choose Source`, `Choose Target` 버튼으로 동기화 쌍을 관리합니다.
+- `Sync pairs` 목록의 컬럼 폭을 드래그해서 조절할 수 있고, 긴 경로는 가로 스크롤로 확인할 수 있습니다.
 - `Skin` 콤보박스에서 내장 스킨을 선택할 수 있습니다.
 - `Sync pairs`와 `Activity` 사이의 구분선을 드래그해 영역 높이를 조절할 수 있습니다.
+- 마지막으로 종료한 창 크기를 기억하고 다음 실행 때 같은 크기로 엽니다.
 - 실행 파일 옆의 `config.toml`에서 설정을 불러오고, 화면에서 바뀐 값을 다시 저장합니다.
 - 중복 실행을 막아 같은 앱이 여러 개 떠서 파일을 잠그는 상황을 줄입니다.
 
@@ -132,6 +134,8 @@ dist\simple-sync-setup.exe
 ```toml
 interval_seconds = 10
 skin = "syncback_blue"
+window_width = 1720
+window_height = 1120
 
 [[pairs]]
 name = "Main Backup"

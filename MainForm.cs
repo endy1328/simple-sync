@@ -167,9 +167,12 @@ public sealed class MainForm : Form
         _grid.AutoGenerateColumns = false;
         _grid.AllowUserToAddRows = false;
         _grid.AllowUserToDeleteRows = false;
+        _grid.AllowUserToResizeColumns = true;
         _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _grid.MultiSelect = true;
         _grid.Dock = DockStyle.Fill;
+        _grid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+        _grid.ScrollBars = ScrollBars.Both;
         _grid.BorderStyle = BorderStyle.None;
         _grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
         _grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
@@ -180,21 +183,22 @@ public sealed class MainForm : Form
         _grid.ColumnHeadersDefaultCellStyle.Font = new Font(Font, FontStyle.Bold);
         _grid.DefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
         _grid.DataSource = _pairs;
-        _grid.Columns.Add(new DataGridViewCheckBoxColumn { DataPropertyName = nameof(SyncPair.Enabled), HeaderText = "On", Width = 64 });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Name), HeaderText = "Name", Width = 180 });
+        _grid.Columns.Add(new DataGridViewCheckBoxColumn { DataPropertyName = nameof(SyncPair.Enabled), HeaderText = "On", Width = 64, MinimumWidth = 54 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Name), HeaderText = "Name", Width = 180, MinimumWidth = 120 });
         _grid.Columns.Add(new DataGridViewComboBoxColumn
         {
             DataPropertyName = nameof(SyncPair.Mode),
             HeaderText = "Mode",
             Width = 140,
+            MinimumWidth = 120,
             DataSource = ModeOptions,
             ValueMember = nameof(ModeOption.Value),
             DisplayMember = nameof(ModeOption.Label),
             FlatStyle = FlatStyle.Flat
         });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 54, SortMode = DataGridViewColumnSortMode.NotSortable });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", Width = 520, MinimumWidth = 220 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 44, MinimumWidth = 36, SortMode = DataGridViewColumnSortMode.NotSortable, Resizable = DataGridViewTriState.False });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", Width = 620, MinimumWidth = 220 });
         _grid.CellParsing += (_, e) =>
         {
             if (e.RowIndex >= 0 &&
@@ -539,6 +543,9 @@ public sealed class MainForm : Form
         {
             var config = _configService.Load();
             _intervalInput.Value = Math.Clamp(config.IntervalSeconds, 1, 86_400);
+            Size = new Size(
+                Math.Max(MinimumSize.Width, config.WindowWidth),
+                Math.Max(MinimumSize.Height, config.WindowHeight));
             ApplySkin(AppSkins.Get(config.Skin));
 
             _pairs.Clear();
@@ -574,6 +581,8 @@ public sealed class MainForm : Form
         {
             IntervalSeconds = (int)_intervalInput.Value,
             Skin = _currentSkin.Key,
+            WindowWidth = WindowState == FormWindowState.Normal ? Width : RestoreBounds.Width,
+            WindowHeight = WindowState == FormWindowState.Normal ? Height : RestoreBounds.Height,
             Pairs = _pairs.Select(NormalizePair).Where(HasAnyPath).ToList()
         });
     }

@@ -1,5 +1,7 @@
 interval_seconds = 10
 skin = "syncback_blue"
+window_width = 1720
+window_height = 1120
 
 [[pairs]]
 name = "Main Backup"
