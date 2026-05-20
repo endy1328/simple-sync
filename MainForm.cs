@@ -25,6 +25,8 @@ public sealed class MainForm : Form
     {
         Text = "simple sync";
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
+        Font = new Font("Segoe UI", 9F);
+        BackColor = Color.FromArgb(244, 247, 251);
         MinimumSize = new Size(860, 560);
         Size = new Size(1720, 1120);
         StartPosition = FormStartPosition.CenterScreen;
@@ -48,25 +50,34 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 4,
-            Padding = new Padding(12)
+            RowCount = 5,
+            Padding = new Padding(16),
+            BackColor = Color.FromArgb(244, 247, 251)
         };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 70));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 30));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(root);
 
+        root.Controls.Add(CreateHeader(), 0, 0);
+
         var toolbar = new FlowLayoutPanel
         {
+            BackColor = Color.White,
             AutoSize = true,
             Dock = DockStyle.Fill,
-            WrapContents = false
+            WrapContents = false,
+            Padding = new Padding(12, 10, 12, 10),
+            Margin = new Padding(0, 0, 0, 10)
         };
 
         _intervalInput.Minimum = 1;
         _intervalInput.Maximum = 86_400;
         _intervalInput.Width = 90;
+        _intervalInput.Height = 30;
+        _intervalInput.Margin = new Padding(4, 2, 8, 0);
         _intervalInput.ValueChanged += (_, _) =>
         {
             if (_isLoadingConfig)
@@ -81,14 +92,15 @@ public sealed class MainForm : Form
         _autoSyncCheck.Text = "Auto";
         _autoSyncCheck.Checked = true;
         _autoSyncCheck.AutoSize = true;
+        _autoSyncCheck.Margin = new Padding(4, 6, 16, 0);
         _autoSyncCheck.CheckedChanged += (_, _) => ConfigureTimer();
 
-        _nowButton.Text = "Now";
-        _nowButton.AutoSize = true;
+        _nowButton.Text = "Sync Now";
+        StyleButton(_nowButton, primary: true);
         _nowButton.Click += async (_, _) => await RunSyncAsync("수동 실행");
 
-        _addButton.Text = "Add";
-        _addButton.AutoSize = true;
+        _addButton.Text = "Add Pair";
+        StyleButton(_addButton, primary: false);
         _addButton.Click += (_, _) =>
         {
             _pairs.Add(new SyncPair());
@@ -96,26 +108,39 @@ public sealed class MainForm : Form
         };
 
         _removeButton.Text = "Remove";
-        _removeButton.AutoSize = true;
+        StyleButton(_removeButton, primary: false);
         _removeButton.Click += (_, _) => RemoveSelectedRows();
 
-        _browseSourceButton.Text = "Source...";
-        _browseSourceButton.AutoSize = true;
+        _browseSourceButton.Text = "Choose Source";
+        StyleButton(_browseSourceButton, primary: false);
         _browseSourceButton.Click += (_, _) => BrowseSelectedPath(isSource: true);
 
-        _browseTargetButton.Text = "Target...";
-        _browseTargetButton.AutoSize = true;
+        _browseTargetButton.Text = "Choose Target";
+        StyleButton(_browseTargetButton, primary: false);
         _browseTargetButton.Click += (_, _) => BrowseSelectedPath(isSource: false);
 
-        toolbar.Controls.Add(new Label { Text = "Interval (sec)", AutoSize = true, Padding = new Padding(0, 7, 4, 0) });
+        toolbar.Controls.Add(new Label
+        {
+            Text = "Every",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(52, 64, 84),
+            Padding = new Padding(0, 7, 2, 0)
+        });
         toolbar.Controls.Add(_intervalInput);
+        toolbar.Controls.Add(new Label
+        {
+            Text = "sec",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(52, 64, 84),
+            Padding = new Padding(0, 7, 12, 0)
+        });
         toolbar.Controls.Add(_autoSyncCheck);
         toolbar.Controls.Add(_nowButton);
         toolbar.Controls.Add(_addButton);
         toolbar.Controls.Add(_removeButton);
         toolbar.Controls.Add(_browseSourceButton);
         toolbar.Controls.Add(_browseTargetButton);
-        root.Controls.Add(toolbar, 0, 0);
+        root.Controls.Add(toolbar, 0, 1);
 
         _grid.AutoGenerateColumns = false;
         _grid.AllowUserToAddRows = false;
@@ -123,10 +148,37 @@ public sealed class MainForm : Form
         _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _grid.MultiSelect = true;
         _grid.Dock = DockStyle.Fill;
+        _grid.BackgroundColor = Color.White;
+        _grid.BorderStyle = BorderStyle.None;
+        _grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+        _grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
+        _grid.EnableHeadersVisualStyles = false;
+        _grid.GridColor = Color.FromArgb(229, 234, 242);
+        _grid.RowHeadersVisible = false;
+        _grid.RowTemplate.Height = 34;
+        _grid.ColumnHeadersHeight = 38;
+        _grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
+        _grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(52, 64, 84);
+        _grid.ColumnHeadersDefaultCellStyle.Font = new Font(Font, FontStyle.Bold);
+        _grid.DefaultCellStyle.BackColor = Color.White;
+        _grid.DefaultCellStyle.ForeColor = Color.FromArgb(29, 41, 57);
+        _grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(219, 234, 254);
+        _grid.DefaultCellStyle.SelectionForeColor = Color.FromArgb(17, 24, 39);
+        _grid.DefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
+        _grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(250, 252, 255);
         _grid.DataSource = _pairs;
-        _grid.Columns.Add(new DataGridViewCheckBoxColumn { DataPropertyName = nameof(SyncPair.Enabled), HeaderText = "Enabled", Width = 72 });
+        _grid.Columns.Add(new DataGridViewCheckBoxColumn { DataPropertyName = nameof(SyncPair.Enabled), HeaderText = "On", Width = 64 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 54, SortMode = DataGridViewColumnSortMode.NotSortable });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        _grid.CellFormatting += (_, e) =>
+        {
+            if (_grid.Columns[e.ColumnIndex].Name == "Direction")
+            {
+                e.Value = "->";
+                e.FormattingApplied = true;
+            }
+        };
         _grid.DataError += (_, e) =>
         {
             e.ThrowException = false;
@@ -156,17 +208,119 @@ public sealed class MainForm : Form
             }
         };
         _grid.UserDeletedRow += (_, _) => SaveConfig();
-        root.Controls.Add(_grid, 0, 1);
+        root.Controls.Add(CreateSection("Sync pairs", _grid), 0, 2);
 
         _log.Dock = DockStyle.Fill;
         _log.Multiline = true;
         _log.ReadOnly = true;
         _log.ScrollBars = ScrollBars.Vertical;
-        root.Controls.Add(_log, 0, 2);
+        _log.BackColor = Color.White;
+        _log.BorderStyle = BorderStyle.None;
+        _log.ForeColor = Color.FromArgb(52, 64, 84);
+        _log.Font = new Font("Consolas", 9F);
+        _log.Margin = new Padding(0);
+        root.Controls.Add(CreateSection("Activity", _log), 0, 3);
 
         _statusLabel.AutoSize = true;
+        _statusLabel.ForeColor = Color.FromArgb(71, 84, 103);
+        _statusLabel.Padding = new Padding(2, 8, 0, 0);
         _statusLabel.Text = "Ready";
-        root.Controls.Add(_statusLabel, 0, 3);
+        root.Controls.Add(_statusLabel, 0, 4);
+    }
+
+    private Control CreateHeader()
+    {
+        var header = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 0, 0, 12)
+        };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+
+        var iconBox = new PictureBox
+        {
+            Image = Icon?.ToBitmap(),
+            SizeMode = PictureBoxSizeMode.StretchImage,
+            Size = new Size(42, 42),
+            Margin = new Padding(0, 2, 12, 0)
+        };
+        header.Controls.Add(iconBox, 0, 0);
+
+        var titleBlock = new TableLayoutPanel
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            RowCount = 2,
+            ColumnCount = 1,
+            Margin = new Padding(0)
+        };
+        titleBlock.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        titleBlock.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        titleBlock.Controls.Add(new Label
+        {
+            Text = "simple sync",
+            AutoSize = true,
+            Font = new Font("Segoe UI Semibold", 18F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(16, 24, 40),
+            Margin = new Padding(0)
+        }, 0, 0);
+        titleBlock.Controls.Add(new Label
+        {
+            Text = "One-way file synchronization for local and network folders",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(102, 112, 133),
+            Margin = new Padding(1, 2, 0, 0)
+        }, 0, 1);
+        header.Controls.Add(titleBlock, 1, 0);
+
+        return header;
+    }
+
+    private static Control CreateSection(string title, Control content)
+    {
+        var section = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            BackColor = Color.White,
+            Padding = new Padding(12),
+            Margin = new Padding(0, 0, 0, 10)
+        };
+        section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        section.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        section.Controls.Add(new Label
+        {
+            Text = title,
+            AutoSize = true,
+            Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
+            ForeColor = Color.FromArgb(16, 24, 40),
+            Margin = new Padding(0, 0, 0, 8)
+        }, 0, 0);
+
+        content.Margin = new Padding(0);
+        section.Controls.Add(content, 0, 1);
+        return section;
+    }
+
+    private static void StyleButton(Button button, bool primary)
+    {
+        button.AutoSize = true;
+        button.Height = 32;
+        button.Padding = new Padding(10, 4, 10, 4);
+        button.Margin = new Padding(4, 0, 0, 0);
+        button.FlatStyle = FlatStyle.Flat;
+        button.FlatAppearance.BorderSize = 1;
+        button.FlatAppearance.BorderColor = primary ? Color.FromArgb(21, 101, 216) : Color.FromArgb(208, 213, 221);
+        button.BackColor = primary ? Color.FromArgb(33, 118, 255) : Color.White;
+        button.ForeColor = primary ? Color.White : Color.FromArgb(52, 64, 84);
+        button.UseVisualStyleBackColor = false;
     }
 
     private void GridKeyDown(object? sender, KeyEventArgs e)
@@ -231,6 +385,11 @@ public sealed class MainForm : Form
         return propertyName is nameof(SyncPair.Source) or nameof(SyncPair.Target);
     }
 
+    private static bool HasAnyPath(SyncPair pair)
+    {
+        return !string.IsNullOrWhiteSpace(pair.Source) || !string.IsNullOrWhiteSpace(pair.Target);
+    }
+
     private static string? GetClipboardPathText()
     {
         try
@@ -282,14 +441,9 @@ public sealed class MainForm : Form
             _intervalInput.Value = Math.Clamp(config.IntervalSeconds, 1, 86_400);
 
             _pairs.Clear();
-            foreach (var pair in config.Pairs)
+            foreach (var pair in config.Pairs.Where(HasAnyPath))
             {
                 _pairs.Add(pair);
-            }
-
-            if (_pairs.Count == 0)
-            {
-                _pairs.Add(new SyncPair());
             }
         }
         finally
@@ -318,7 +472,7 @@ public sealed class MainForm : Form
         _configService.Save(new AppConfig
         {
             IntervalSeconds = (int)_intervalInput.Value,
-            Pairs = _pairs.ToList()
+            Pairs = _pairs.Where(HasAnyPath).ToList()
         });
     }
 
