@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="artifacts\**\*.cs" />
     <Compile Remove="tools\**\*.cs" />
   </ItemGroup>
 

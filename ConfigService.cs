@@ -64,6 +64,14 @@ public sealed class ConfigService
             {
                 currentPair.Enabled = enabled;
             }
+            else if (key.Equals("name", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.Name = Unquote(value);
+            }
+            else if (key.Equals("mode", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.Mode = SyncModes.Normalize(Unquote(value));
+            }
             else if (key.Equals("source", StringComparison.OrdinalIgnoreCase))
             {
                 currentPair.Source = Unquote(value);
@@ -87,7 +95,9 @@ public sealed class ConfigService
         foreach (var pair in config.Pairs)
         {
             builder.AppendLine("[[pairs]]");
+            builder.AppendLine($"name = \"{Escape(pair.Name)}\"");
             builder.AppendLine($"enabled = {pair.Enabled.ToString().ToLowerInvariant()}");
+            builder.AppendLine($"mode = \"{Escape(SyncModes.Normalize(pair.Mode))}\"");
             builder.AppendLine($"source = \"{Escape(pair.Source)}\"");
             builder.AppendLine($"target = \"{Escape(pair.Target)}\"");
             builder.AppendLine();
@@ -125,8 +135,9 @@ public sealed class ConfigService
         return value.Replace("\\\"", "\"").Replace("\\\\", "\\");
     }
 
-    private static string Escape(string value)
+    private static string Escape(string? value)
     {
+        value ??= string.Empty;
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
     }
 }

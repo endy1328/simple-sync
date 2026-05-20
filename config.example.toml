@@ -2,11 +2,15 @@ interval_seconds = 10
 skin = "syncback_blue"
 
 [[pairs]]
+name = "Main Backup"
 enabled = true
+mode = "copy"
 source = "C:\\source"
 target = "D:\\backup"
 
 [[pairs]]
+name = "Secondary Backup"
 enabled = false
+mode = "mirror"
 source = "C:\\another-source"
 target = "D:\\another-backup"

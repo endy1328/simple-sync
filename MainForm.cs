@@ -4,11 +4,20 @@ namespace SimpleSync;
 
 public sealed class MainForm : Form
 {
+    private sealed record ModeOption(string Value, string Label);
+
+    private static readonly ModeOption[] ModeOptions =
+    [
+        new(SyncModes.Copy, "Copy changes"),
+        new(SyncModes.Mirror, "Mirror source")
+    ];
+
     private readonly BindingList<SyncPair> _pairs = [];
     private readonly ConfigService _configService;
     private readonly SyncService _syncService = new();
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly SemaphoreSlim _syncLock = new(1, 1);
+    private CancellationTokenSource _syncCancellation = new();
     private readonly NumericUpDown _intervalInput = new();
     private readonly DataGridView _grid = new();
     private readonly TextBox _log = new();
@@ -46,6 +55,8 @@ public sealed class MainForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        _timer.Stop();
+        _syncCancellation.Cancel();
         SaveConfig(commitGridEdit: true);
         base.OnFormClosing(e);
     }
@@ -56,14 +67,13 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 5,
+            RowCount = 4,
             Padding = new Padding(16),
         };
         _surfaces.Add(root);
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 70));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 30));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(root);
 
@@ -109,7 +119,7 @@ public sealed class MainForm : Form
         RegisterButton(_addButton, primary: false);
         _addButton.Click += (_, _) =>
         {
-            _pairs.Add(new SyncPair());
+            _pairs.Add(new SyncPair { Name = $"Pair {_pairs.Count + 1}" });
             SaveConfig();
         };
 
@@ -171,6 +181,17 @@ public sealed class MainForm : Form
         _grid.DefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
         _grid.DataSource = _pairs;
         _grid.Columns.Add(new DataGridViewCheckBoxColumn { DataPropertyName = nameof(SyncPair.Enabled), HeaderText = "On", Width = 64 });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Name), HeaderText = "Name", Width = 180 });
+        _grid.Columns.Add(new DataGridViewComboBoxColumn
+        {
+            DataPropertyName = nameof(SyncPair.Mode),
+            HeaderText = "Mode",
+            Width = 140,
+            DataSource = ModeOptions,
+            ValueMember = nameof(ModeOption.Value),
+            DisplayMember = nameof(ModeOption.Label),
+            FlatStyle = FlatStyle.Flat
+        });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 54, SortMode = DataGridViewColumnSortMode.NotSortable });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
@@ -222,7 +243,6 @@ public sealed class MainForm : Form
             }
         };
         _grid.UserDeletedRow += (_, _) => SaveConfig();
-        root.Controls.Add(CreateSection("Sync pairs", _grid), 0, 2);
 
         _log.Dock = DockStyle.Fill;
         _log.Multiline = true;
@@ -231,13 +251,41 @@ public sealed class MainForm : Form
         _log.BorderStyle = BorderStyle.None;
         _log.Font = new Font("Consolas", 9F);
         _log.Margin = new Padding(0);
-        root.Controls.Add(CreateSection("Activity", _log), 0, 3);
+
+        var splitterInitialized = false;
+        var split = new SplitContainer
+        {
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Horizontal,
+            SplitterWidth = 7,
+            Panel1MinSize = 140,
+            Panel2MinSize = 120,
+            Margin = new Padding(0, 0, 0, 10)
+        };
+        split.Panel1.Controls.Add(CreateSection("Sync pairs", _grid));
+        split.Panel2.Controls.Add(CreateSection("Activity", _log));
+        split.SizeChanged += (_, _) =>
+        {
+            if (splitterInitialized)
+            {
+                return;
+            }
+
+            var desired = Math.Max(split.Panel1MinSize, (int)(split.Height * 0.68));
+            var max = split.Height - split.Panel2MinSize - split.SplitterWidth;
+            if (max > split.Panel1MinSize)
+            {
+                split.SplitterDistance = Math.Min(desired, max);
+                splitterInitialized = true;
+            }
+        };
+        root.Controls.Add(split, 0, 2);
 
         _statusLabel.AutoSize = true;
         _mutedLabels.Add(_statusLabel);
         _statusLabel.Padding = new Padding(2, 8, 0, 0);
         _statusLabel.Text = "Ready";
-        root.Controls.Add(_statusLabel, 0, 4);
+        root.Controls.Add(_statusLabel, 0, 3);
     }
 
     private Label CreateToolbarLabel(string text, Padding padding)
@@ -423,6 +471,25 @@ public sealed class MainForm : Form
         return !string.IsNullOrWhiteSpace(pair.Source) || !string.IsNullOrWhiteSpace(pair.Target);
     }
 
+    private static SyncPair NormalizePair(SyncPair pair, int index)
+    {
+        pair.Name = string.IsNullOrWhiteSpace(pair.Name) ? $"Pair {index + 1}" : pair.Name.Trim();
+        pair.Mode = SyncModes.Normalize(pair.Mode);
+        pair.Source ??= string.Empty;
+        pair.Target ??= string.Empty;
+        return pair;
+    }
+
+    private static string PairLogName(SyncPair pair)
+    {
+        return string.IsNullOrWhiteSpace(pair.Name) ? "Pair" : pair.Name.Trim();
+    }
+
+    private static string LogPath(string? path)
+    {
+        return string.IsNullOrWhiteSpace(path) ? "(empty)" : path.Trim();
+    }
+
     private static string? GetClipboardPathText()
     {
         try
@@ -475,7 +542,7 @@ public sealed class MainForm : Form
             ApplySkin(AppSkins.Get(config.Skin));
 
             _pairs.Clear();
-            foreach (var pair in config.Pairs.Where(HasAnyPath))
+            foreach (var pair in config.Pairs.Select(NormalizePair).Where(HasAnyPath))
             {
                 _pairs.Add(pair);
             }
@@ -507,7 +574,7 @@ public sealed class MainForm : Form
         {
             IntervalSeconds = (int)_intervalInput.Value,
             Skin = _currentSkin.Key,
-            Pairs = _pairs.Where(HasAnyPath).ToList()
+            Pairs = _pairs.Select(NormalizePair).Where(HasAnyPath).ToList()
         });
     }
 
@@ -607,14 +674,30 @@ public sealed class MainForm : Form
         SetBusy(true);
         try
         {
+            _syncCancellation.Dispose();
+            _syncCancellation = new CancellationTokenSource();
             AppendLog($"{reason} 시작");
-            var result = await _syncService.SyncAsync(_pairs.ToList(), CancellationToken.None);
-            AppendLog($"완료: 복사 {result.CopiedFiles}, 유지 {result.SkippedFiles}, 실패 {result.FailedFiles}");
 
-            foreach (var message in result.Messages)
+            foreach (var pair in _pairs.Select(NormalizePair).Where(pair => pair.Enabled).ToList())
             {
-                AppendLog($"- {message}");
+                _syncCancellation.Token.ThrowIfCancellationRequested();
+
+                var pairName = PairLogName(pair);
+                AppendLog($"[{pairName}] 시작");
+                AppendLog($"[{pairName}] 모드: {DescribeMode(pair.Mode)}");
+                AppendLog($"[{pairName}] 진행경로: {LogPath(pair.Source)} -> {LogPath(pair.Target)}");
+                var result = await _syncService.SyncAsync([pair], _syncCancellation.Token);
+                AppendLog($"[{pairName}] 완료: 복사 {result.CopiedFiles}, 유지 {result.SkippedFiles}, 삭제 {result.DeletedFiles}, 실패 {result.FailedFiles}");
+
+                foreach (var message in result.Messages)
+                {
+                    AppendLog($"[{pairName}] - {message}");
+                }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("동기화가 취소되었습니다.");
         }
         catch (Exception ex)
         {
@@ -640,6 +723,13 @@ public sealed class MainForm : Form
         }
 
         SaveConfig();
+    }
+
+    private static string DescribeMode(string? mode)
+    {
+        return SyncModes.Normalize(mode) == SyncModes.Mirror
+            ? "Mirror source"
+            : "Copy changes";
     }
 
     private void BrowseSelectedPath(bool isSource)

@@ -1,25 +1,33 @@
 @echo off
-setlocal
+setlocal EnableExtensions DisableDelayedExpansion
 
 REM Emergency fallback example for environments where custom EXE files are blocked.
-REM Edit SOURCE and TARGET below, then run this file.
+REM Recommended usage for paths with spaces or Korean text:
+REM   scripts\simple-sync-robocopy.cmd "\\server\share\source" "C:\target folder"
+REM
 REM Robocopy copies only new or changed files by default.
 
-set "SOURCE=C:\source"
-set "TARGET=D:\backup"
+chcp 65001 >nul
 
-if "%SOURCE%"=="" (
+set "SOURCE=%~1"
+set "TARGET=%~2"
+
+REM If no arguments were passed, edit the fallback values below.
+if not defined SOURCE set "SOURCE=C:\source"
+if not defined TARGET set "TARGET=D:\backup"
+
+if not defined SOURCE (
   echo SOURCE is empty.
   exit /b 1
 )
 
-if "%TARGET%"=="" (
+if not defined TARGET (
   echo TARGET is empty.
   exit /b 1
 )
 
 echo simple sync robocopy fallback
-echo %SOURCE% --^> %TARGET%
+echo "%SOURCE%" --^> "%TARGET%"
 
 robocopy "%SOURCE%" "%TARGET%" /E /COPY:DAT /DCOPY:T /R:1 /W:1
 set "RC=%ERRORLEVEL%"
