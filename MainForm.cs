@@ -174,6 +174,17 @@ public sealed class MainForm : Form
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 54, SortMode = DataGridViewColumnSortMode.NotSortable });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
+        _grid.CellParsing += (_, e) =>
+        {
+            if (e.RowIndex >= 0 &&
+                e.ColumnIndex >= 0 &&
+                IsPathCell(_grid.Rows[e.RowIndex].Cells[e.ColumnIndex]) &&
+                e.Value is null)
+            {
+                e.Value = string.Empty;
+                e.ParsingApplied = true;
+            }
+        };
         _grid.CellFormatting += (_, e) =>
         {
             if (_grid.Columns[e.ColumnIndex].Name == "Direction")
@@ -185,7 +196,7 @@ public sealed class MainForm : Form
         _grid.DataError += (_, e) =>
         {
             e.ThrowException = false;
-            AppendLog($"입력 오류: {e.Exception?.Message ?? "알 수 없는 오류"}");
+            e.Cancel = false;
         };
         _grid.EditingControlShowing += (_, e) =>
         {

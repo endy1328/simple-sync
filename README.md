@@ -44,6 +44,32 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 
 이 빌드는 framework-dependent 방식이므로 대상 PC에 호환되는 .NET Windows Desktop Runtime이 필요합니다.
 
+## exe 실행이 제한된 환경
+
+SI 현장처럼 사용자 제작 exe 실행이 제한된 환경을 위해 `scripts` 폴더에 fallback 스크립트를 제공합니다.
+
+PowerShell fallback:
+
+```powershell
+.\scripts\simple-sync.ps1 -ConfigPath .\config.toml
+```
+
+1회만 실행:
+
+```powershell
+.\scripts\simple-sync.ps1 -ConfigPath .\config.toml -Once
+```
+
+이 스크립트는 `config.toml`의 `interval_seconds`와 `[[pairs]]` 설정을 읽고 Windows 기본 도구인 `robocopy`를 호출합니다.
+
+비상용 robocopy cmd 예제:
+
+```cmd
+scripts\simple-sync-robocopy.cmd
+```
+
+`simple-sync-robocopy.cmd`는 파일 안의 `SOURCE`, `TARGET` 값을 직접 수정해서 쓰는 최소 예제입니다.
+
 ## 설정 파일
 
 `config.toml`은 `simple sync.exe`와 같은 폴더에 저장됩니다. 앱은 시작 시 이 파일을 읽고, 화면에서 설정이 변경되거나 앱이 종료될 때 최신 값을 저장합니다.
@@ -98,6 +124,8 @@ Git에 포함:
 - `README.md`
 - `config.example.toml`
 - `.gitignore`
+- `scripts/simple-sync.ps1`
+- `scripts/simple-sync-robocopy.cmd`
 - 아이콘 파일과 아이콘 생성 스크립트
 - AI/하네스/인수인계 문서
 
