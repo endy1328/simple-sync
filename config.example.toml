@@ -1,4 +1,5 @@
 interval_seconds = 10
+skin = "syncback_blue"
 
 [[pairs]]
 enabled = true

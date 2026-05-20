@@ -18,7 +18,14 @@ public sealed class MainForm : Form
     private readonly Button _browseSourceButton = new();
     private readonly Button _browseTargetButton = new();
     private readonly CheckBox _autoSyncCheck = new();
+    private readonly ComboBox _skinSelect = new();
     private readonly Label _statusLabel = new();
+    private readonly List<Control> _surfaces = [];
+    private readonly List<Label> _titleLabels = [];
+    private readonly List<Label> _mutedLabels = [];
+    private readonly List<Button> _primaryButtons = [];
+    private readonly List<Button> _secondaryButtons = [];
+    private AppSkin _currentSkin = AppSkins.Get(null);
     private bool _isLoadingConfig;
 
     public MainForm()
@@ -26,7 +33,6 @@ public sealed class MainForm : Form
         Text = "simple sync";
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
         Font = new Font("Segoe UI", 9F);
-        BackColor = Color.FromArgb(244, 247, 251);
         MinimumSize = new Size(860, 560);
         Size = new Size(1720, 1120);
         StartPosition = FormStartPosition.CenterScreen;
@@ -52,8 +58,8 @@ public sealed class MainForm : Form
             ColumnCount = 1,
             RowCount = 5,
             Padding = new Padding(16),
-            BackColor = Color.FromArgb(244, 247, 251)
         };
+        _surfaces.Add(root);
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 70));
@@ -65,13 +71,13 @@ public sealed class MainForm : Form
 
         var toolbar = new FlowLayoutPanel
         {
-            BackColor = Color.White,
             AutoSize = true,
             Dock = DockStyle.Fill,
             WrapContents = false,
             Padding = new Padding(12, 10, 12, 10),
             Margin = new Padding(0, 0, 0, 10)
         };
+        _surfaces.Add(toolbar);
 
         _intervalInput.Minimum = 1;
         _intervalInput.Maximum = 86_400;
@@ -96,11 +102,11 @@ public sealed class MainForm : Form
         _autoSyncCheck.CheckedChanged += (_, _) => ConfigureTimer();
 
         _nowButton.Text = "Sync Now";
-        StyleButton(_nowButton, primary: true);
+        RegisterButton(_nowButton, primary: true);
         _nowButton.Click += async (_, _) => await RunSyncAsync("수동 실행");
 
         _addButton.Text = "Add Pair";
-        StyleButton(_addButton, primary: false);
+        RegisterButton(_addButton, primary: false);
         _addButton.Click += (_, _) =>
         {
             _pairs.Add(new SyncPair());
@@ -108,38 +114,44 @@ public sealed class MainForm : Form
         };
 
         _removeButton.Text = "Remove";
-        StyleButton(_removeButton, primary: false);
+        RegisterButton(_removeButton, primary: false);
         _removeButton.Click += (_, _) => RemoveSelectedRows();
 
         _browseSourceButton.Text = "Choose Source";
-        StyleButton(_browseSourceButton, primary: false);
+        RegisterButton(_browseSourceButton, primary: false);
         _browseSourceButton.Click += (_, _) => BrowseSelectedPath(isSource: true);
 
         _browseTargetButton.Text = "Choose Target";
-        StyleButton(_browseTargetButton, primary: false);
+        RegisterButton(_browseTargetButton, primary: false);
         _browseTargetButton.Click += (_, _) => BrowseSelectedPath(isSource: false);
 
-        toolbar.Controls.Add(new Label
-        {
-            Text = "Every",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(52, 64, 84),
-            Padding = new Padding(0, 7, 2, 0)
-        });
+        toolbar.Controls.Add(CreateToolbarLabel("Every", new Padding(0, 7, 2, 0)));
         toolbar.Controls.Add(_intervalInput);
-        toolbar.Controls.Add(new Label
-        {
-            Text = "sec",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(52, 64, 84),
-            Padding = new Padding(0, 7, 12, 0)
-        });
+        toolbar.Controls.Add(CreateToolbarLabel("sec", new Padding(0, 7, 12, 0)));
         toolbar.Controls.Add(_autoSyncCheck);
         toolbar.Controls.Add(_nowButton);
         toolbar.Controls.Add(_addButton);
         toolbar.Controls.Add(_removeButton);
         toolbar.Controls.Add(_browseSourceButton);
         toolbar.Controls.Add(_browseTargetButton);
+
+        _skinSelect.DropDownStyle = ComboBoxStyle.DropDownList;
+        _skinSelect.Width = 150;
+        _skinSelect.Margin = new Padding(16, 2, 0, 0);
+        foreach (var skin in AppSkins.All)
+        {
+            _skinSelect.Items.Add(skin);
+        }
+        _skinSelect.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_isLoadingConfig && _skinSelect.SelectedItem is AppSkin skin)
+            {
+                ApplySkin(skin);
+                SaveConfig();
+            }
+        };
+        toolbar.Controls.Add(CreateToolbarLabel("Skin", new Padding(16, 7, 2, 0)));
+        toolbar.Controls.Add(_skinSelect);
         root.Controls.Add(toolbar, 0, 1);
 
         _grid.AutoGenerateColumns = false;
@@ -148,24 +160,15 @@ public sealed class MainForm : Form
         _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _grid.MultiSelect = true;
         _grid.Dock = DockStyle.Fill;
-        _grid.BackgroundColor = Color.White;
         _grid.BorderStyle = BorderStyle.None;
         _grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
         _grid.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None;
         _grid.EnableHeadersVisualStyles = false;
-        _grid.GridColor = Color.FromArgb(229, 234, 242);
         _grid.RowHeadersVisible = false;
         _grid.RowTemplate.Height = 34;
         _grid.ColumnHeadersHeight = 38;
-        _grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(248, 250, 252);
-        _grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(52, 64, 84);
         _grid.ColumnHeadersDefaultCellStyle.Font = new Font(Font, FontStyle.Bold);
-        _grid.DefaultCellStyle.BackColor = Color.White;
-        _grid.DefaultCellStyle.ForeColor = Color.FromArgb(29, 41, 57);
-        _grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(219, 234, 254);
-        _grid.DefaultCellStyle.SelectionForeColor = Color.FromArgb(17, 24, 39);
         _grid.DefaultCellStyle.Padding = new Padding(6, 0, 6, 0);
-        _grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(250, 252, 255);
         _grid.DataSource = _pairs;
         _grid.Columns.Add(new DataGridViewCheckBoxColumn { DataPropertyName = nameof(SyncPair.Enabled), HeaderText = "On", Width = 64 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
@@ -214,18 +217,28 @@ public sealed class MainForm : Form
         _log.Multiline = true;
         _log.ReadOnly = true;
         _log.ScrollBars = ScrollBars.Vertical;
-        _log.BackColor = Color.White;
         _log.BorderStyle = BorderStyle.None;
-        _log.ForeColor = Color.FromArgb(52, 64, 84);
         _log.Font = new Font("Consolas", 9F);
         _log.Margin = new Padding(0);
         root.Controls.Add(CreateSection("Activity", _log), 0, 3);
 
         _statusLabel.AutoSize = true;
-        _statusLabel.ForeColor = Color.FromArgb(71, 84, 103);
+        _mutedLabels.Add(_statusLabel);
         _statusLabel.Padding = new Padding(2, 8, 0, 0);
         _statusLabel.Text = "Ready";
         root.Controls.Add(_statusLabel, 0, 4);
+    }
+
+    private Label CreateToolbarLabel(string text, Padding padding)
+    {
+        var label = new Label
+        {
+            Text = text,
+            AutoSize = true,
+            Padding = padding
+        };
+        _mutedLabels.Add(label);
+        return label;
     }
 
     private Control CreateHeader()
@@ -261,55 +274,59 @@ public sealed class MainForm : Form
         titleBlock.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         titleBlock.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        titleBlock.Controls.Add(new Label
+        var titleLabel = new Label
         {
             Text = "simple sync",
             AutoSize = true,
             Font = new Font("Segoe UI Semibold", 18F, FontStyle.Bold),
-            ForeColor = Color.FromArgb(16, 24, 40),
             Margin = new Padding(0)
-        }, 0, 0);
-        titleBlock.Controls.Add(new Label
+        };
+        _titleLabels.Add(titleLabel);
+        titleBlock.Controls.Add(titleLabel, 0, 0);
+
+        var subtitleLabel = new Label
         {
             Text = "One-way file synchronization for local and network folders",
             AutoSize = true,
-            ForeColor = Color.FromArgb(102, 112, 133),
             Margin = new Padding(1, 2, 0, 0)
-        }, 0, 1);
+        };
+        _mutedLabels.Add(subtitleLabel);
+        titleBlock.Controls.Add(subtitleLabel, 0, 1);
         header.Controls.Add(titleBlock, 1, 0);
 
         return header;
     }
 
-    private static Control CreateSection(string title, Control content)
+    private Control CreateSection(string title, Control content)
     {
         var section = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
-            BackColor = Color.White,
             Padding = new Padding(12),
             Margin = new Padding(0, 0, 0, 10)
         };
+        _surfaces.Add(section);
         section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        section.Controls.Add(new Label
+        var label = new Label
         {
             Text = title,
             AutoSize = true,
             Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
-            ForeColor = Color.FromArgb(16, 24, 40),
             Margin = new Padding(0, 0, 0, 8)
-        }, 0, 0);
+        };
+        _titleLabels.Add(label);
+        section.Controls.Add(label, 0, 0);
 
         content.Margin = new Padding(0);
         section.Controls.Add(content, 0, 1);
         return section;
     }
 
-    private static void StyleButton(Button button, bool primary)
+    private void RegisterButton(Button button, bool primary)
     {
         button.AutoSize = true;
         button.Height = 32;
@@ -317,10 +334,15 @@ public sealed class MainForm : Form
         button.Margin = new Padding(4, 0, 0, 0);
         button.FlatStyle = FlatStyle.Flat;
         button.FlatAppearance.BorderSize = 1;
-        button.FlatAppearance.BorderColor = primary ? Color.FromArgb(21, 101, 216) : Color.FromArgb(208, 213, 221);
-        button.BackColor = primary ? Color.FromArgb(33, 118, 255) : Color.White;
-        button.ForeColor = primary ? Color.White : Color.FromArgb(52, 64, 84);
         button.UseVisualStyleBackColor = false;
+        if (primary)
+        {
+            _primaryButtons.Add(button);
+        }
+        else
+        {
+            _secondaryButtons.Add(button);
+        }
     }
 
     private void GridKeyDown(object? sender, KeyEventArgs e)
@@ -439,6 +461,7 @@ public sealed class MainForm : Form
         {
             var config = _configService.Load();
             _intervalInput.Value = Math.Clamp(config.IntervalSeconds, 1, 86_400);
+            ApplySkin(AppSkins.Get(config.Skin));
 
             _pairs.Clear();
             foreach (var pair in config.Pairs.Where(HasAnyPath))
@@ -472,8 +495,69 @@ public sealed class MainForm : Form
         _configService.Save(new AppConfig
         {
             IntervalSeconds = (int)_intervalInput.Value,
+            Skin = _currentSkin.Key,
             Pairs = _pairs.Where(HasAnyPath).ToList()
         });
+    }
+
+    private void ApplySkin(AppSkin skin)
+    {
+        _currentSkin = skin;
+        BackColor = skin.AppBackground;
+
+        foreach (var surface in _surfaces)
+        {
+            surface.BackColor = surface == _surfaces.FirstOrDefault() ? skin.AppBackground : skin.Surface;
+        }
+
+        foreach (var label in _titleLabels)
+        {
+            label.ForeColor = skin.Text;
+        }
+
+        foreach (var label in _mutedLabels)
+        {
+            label.ForeColor = skin.MutedText;
+        }
+
+        foreach (var button in _primaryButtons)
+        {
+            button.BackColor = skin.Accent;
+            button.ForeColor = Color.White;
+            button.FlatAppearance.BorderColor = skin.AccentDark;
+        }
+
+        foreach (var button in _secondaryButtons)
+        {
+            button.BackColor = skin.Surface;
+            button.ForeColor = skin.Text;
+            button.FlatAppearance.BorderColor = skin.Border;
+        }
+
+        _autoSyncCheck.ForeColor = skin.Text;
+        _skinSelect.BackColor = skin.Surface;
+        _skinSelect.ForeColor = skin.Text;
+        _intervalInput.BackColor = skin.Surface;
+        _intervalInput.ForeColor = skin.Text;
+
+        _grid.BackgroundColor = skin.Surface;
+        _grid.GridColor = skin.Border;
+        _grid.ColumnHeadersDefaultCellStyle.BackColor = skin.SurfaceAlt;
+        _grid.ColumnHeadersDefaultCellStyle.ForeColor = skin.Text;
+        _grid.DefaultCellStyle.BackColor = skin.Surface;
+        _grid.DefaultCellStyle.ForeColor = skin.Text;
+        _grid.DefaultCellStyle.SelectionBackColor = skin.AccentSoft;
+        _grid.DefaultCellStyle.SelectionForeColor = skin.Text;
+        _grid.AlternatingRowsDefaultCellStyle.BackColor = skin.SurfaceAlt;
+
+        _log.BackColor = skin.LogBackground;
+        _log.ForeColor = skin.LogText;
+
+        var selectedIndex = AppSkins.All.ToList().FindIndex(item => item.Key == skin.Key);
+        if (selectedIndex >= 0 && _skinSelect.SelectedIndex != selectedIndex)
+        {
+            _skinSelect.SelectedIndex = selectedIndex;
+        }
     }
 
     private void ConfigureTimer()

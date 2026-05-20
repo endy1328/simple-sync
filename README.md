@@ -40,10 +40,13 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 
 저장소에는 개인 경로가 들어가는 실제 `config.toml` 대신 `config.example.toml` 예제 파일만 포함합니다.
 
+스킨은 화면의 `Skin` 콤보박스에서 선택할 수 있으며, 마지막 선택값은 `config.toml`에 저장됩니다.
+
 ## 설정 예시
 
 ```toml
 interval_seconds = 10
+skin = "syncback_blue"
 
 [[pairs]]
 enabled = true

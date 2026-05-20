@@ -3,6 +3,7 @@ namespace SimpleSync;
 public sealed class AppConfig
 {
     public int IntervalSeconds { get; set; } = 10;
+    public string Skin { get; set; } = "syncback_blue";
     public List<SyncPair> Pairs { get; set; } = [];
 }
 

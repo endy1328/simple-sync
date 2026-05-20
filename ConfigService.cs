@@ -52,6 +52,10 @@ public sealed class ConfigService
                 {
                     config.IntervalSeconds = Math.Clamp(seconds, 1, 86_400);
                 }
+                else if (key.Equals("skin", StringComparison.OrdinalIgnoreCase))
+                {
+                    config.Skin = Unquote(value);
+                }
                 continue;
             }
 
@@ -77,6 +81,7 @@ public sealed class ConfigService
     {
         var builder = new StringBuilder();
         builder.AppendLine($"interval_seconds = {Math.Clamp(config.IntervalSeconds, 1, 86_400)}");
+        builder.AppendLine($"skin = \"{Escape(config.Skin)}\"");
         builder.AppendLine();
 
         foreach (var pair in config.Pairs)

@@ -11,4 +11,8 @@
     <ApplicationIcon>Assets\simple-sync.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Compile Remove="tools\**\*.cs" />
+  </ItemGroup>
+
 </Project>
