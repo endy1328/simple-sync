@@ -4,6 +4,7 @@ await Run("reports progress while copying changed files", ReportsProgressWhileCo
 await Run("sync without progress callback still copies files", SyncWithoutProgressCallbackStillCopiesFiles);
 await Run("copy mode preserves target-only files", CopyModePreservesTargetOnlyFiles);
 await Run("mirror mode deletes target-only files", MirrorModeDeletesTargetOnlyFiles);
+await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
 
 static async Task Run(string name, Func<Task> test)
 {
@@ -81,6 +82,19 @@ static async Task MirrorModeDeletesTargetOnlyFiles()
         CancellationToken.None);
 
     Assert(!File.Exists(Path.Combine(workspace.Target, "target-only.txt")), "mirror mode should delete target-only file");
+}
+
+static Task DebugBuildUsesSeparateSingleInstanceMutex()
+{
+    var releaseMutex = SimpleSync.Program.GetSingleInstanceMutexName(isDebugBuild: false);
+    var debugMutex = SimpleSync.Program.GetSingleInstanceMutexName(isDebugBuild: true);
+
+    Assert(releaseMutex.Length > 0, "release mutex should not be empty");
+    Assert(debugMutex.Length > 0, "debug mutex should not be empty");
+    Assert(releaseMutex != debugMutex, "debug and release mutex names should be different");
+    Assert(debugMutex.EndsWith("_Debug", StringComparison.Ordinal), "debug mutex should be clearly marked");
+
+    return Task.CompletedTask;
 }
 
 static void Assert(bool condition, string message)
