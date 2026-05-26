@@ -220,7 +220,23 @@ public sealed class MainForm : Form
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Filter", HeaderText = "Filter", ReadOnly = true, Width = 160, MinimumWidth = 120, SortMode = DataGridViewColumnSortMode.NotSortable });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Progress", HeaderText = "Progress", ReadOnly = true, Width = 150, MinimumWidth = 130, SortMode = DataGridViewColumnSortMode.NotSortable });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 48, MinimumWidth = 260 });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 44, MinimumWidth = 36, SortMode = DataGridViewColumnSortMode.NotSortable, Resizable = DataGridViewTriState.False });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            Name = "Direction",
+            HeaderText = "Flow",
+            ReadOnly = true,
+            Width = 72,
+            MinimumWidth = 64,
+            SortMode = DataGridViewColumnSortMode.NotSortable,
+            Resizable = DataGridViewTriState.False,
+            DefaultCellStyle = new DataGridViewCellStyle
+            {
+                Alignment = DataGridViewContentAlignment.MiddleCenter,
+                Font = new Font(Font, FontStyle.Bold),
+                Padding = Padding.Empty
+            },
+            HeaderCell = { Style = { Alignment = DataGridViewContentAlignment.MiddleCenter } }
+        });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 52, MinimumWidth = 260 });
         _grid.CellParsing += (_, e) =>
         {
@@ -237,7 +253,7 @@ public sealed class MainForm : Form
         {
             if (_grid.Columns[e.ColumnIndex].Name == "Direction")
             {
-                e.Value = "->";
+                e.Value = GetFlowSymbol(e.RowIndex);
                 e.FormattingApplied = true;
             }
             else if (_grid.Columns[e.ColumnIndex].Name == "Progress" &&
@@ -894,6 +910,21 @@ public sealed class MainForm : Form
         return SyncModes.Normalize(mode) == SyncModes.Mirror
             ? "Mirror source"
             : "Copy changes";
+    }
+
+    private string GetFlowSymbol(int rowIndex)
+    {
+        if (rowIndex < 0 || _grid.Rows[rowIndex].DataBoundItem is not SyncPair pair)
+        {
+            return "➜";
+        }
+
+        return pair.Mode?.Trim().ToLowerInvariant() switch
+        {
+            "reverse" => "⬅",
+            "two-way" or "twoway" or "bidirectional" => "⬌",
+            _ => "➜"
+        };
     }
 
     private void BrowseSelectedPath(bool isSource)
