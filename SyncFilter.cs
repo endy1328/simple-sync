@@ -41,40 +41,7 @@ public sealed class SyncFilter
     {
         get
         {
-            if (!HasRules)
-            {
-                return "All files";
-            }
-
-            var parts = new List<string>();
-            if (_extensions.Count > 0)
-            {
-                parts.Add(string.Join(", ", _extensions.Take(3)));
-            }
-            else if (_files.Count > 0)
-            {
-                parts.Add($"{_files.Count} files");
-            }
-            else if (_includePatterns.Count > 0)
-            {
-                parts.Add(string.Join(", ", _includePatterns.Take(2)));
-            }
-            else
-            {
-                parts.Add("Custom rules");
-            }
-
-            if (_excludePatterns.Count > 0)
-            {
-                parts.Add($"exclude {_excludePatterns.Count}");
-            }
-
-            if (!_includeSubdirectories)
-            {
-                parts.Add("top folder only");
-            }
-
-            return string.Join(" / ", parts);
+            return HasRules ? "Filtered" : "All files";
         }
     }
 
