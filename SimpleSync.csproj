@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <Compile Remove="artifacts\**\*.cs" />
+    <Compile Remove="tests\**\*.cs" />
     <Compile Remove="tools\**\*.cs" />
   </ItemGroup>
 

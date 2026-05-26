@@ -37,3 +37,29 @@ public sealed class SyncResult
     public int FailedFiles { get; set; }
     public List<string> Messages { get; } = [];
 }
+
+public enum SyncPhase
+{
+    Pending,
+    Preparing,
+    Copying,
+    Deleting,
+    Completed,
+    Failed
+}
+
+public sealed class SyncProgress
+{
+    public SyncPair Pair { get; init; } = new();
+    public SyncPhase Phase { get; init; } = SyncPhase.Pending;
+    public int ProcessedFiles { get; init; }
+    public int? TotalFiles { get; init; }
+    public string? CurrentPath { get; init; }
+    public long CurrentFileBytes { get; init; }
+    public long? CurrentFileTotalBytes { get; init; }
+    public int CopiedFiles { get; init; }
+    public int SkippedFiles { get; init; }
+    public int DeletedFiles { get; init; }
+    public int FailedFiles { get; init; }
+    public string? Message { get; init; }
+}

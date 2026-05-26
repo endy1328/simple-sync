@@ -13,6 +13,8 @@
 - 동기화 쌍별로 `Copy changes` 또는 `Mirror source` 모드를 선택할 수 있습니다.
 - `A -> B`, `C -> D`처럼 2개 이상의 동기화 쌍을 설정할 수 있습니다.
 - 각 동기화 쌍에 이름을 붙이고 Activity 로그에서 이름으로 구분할 수 있습니다.
+- 각 동기화 쌍의 진행률과 현재 처리 중인 파일을 `Sync pairs` 목록에서 확인할 수 있습니다.
+- Activity 로그는 `All`, `Selected`, `Errors` 기준으로 필터링할 수 있습니다.
 - `Sync Now` 버튼을 누르면 즉시 동기화를 실행합니다.
 - `Add Pair`, `Remove`, `Choose Source`, `Choose Target` 버튼으로 동기화 쌍을 관리합니다.
 - `Sync pairs` 목록의 컬럼 폭을 드래그해서 조절할 수 있고, 긴 경로는 가로 스크롤로 확인할 수 있습니다.
@@ -38,6 +40,12 @@ dotnet run
 
 ```powershell
 dotnet build
+```
+
+동기화 엔진 테스트 실행:
+
+```powershell
+dotnet run --project .\tests\SimpleSync.Tests\SimpleSync.Tests.csproj
 ```
 
 Windows x64 Release 빌드 생성:
@@ -176,6 +184,8 @@ target = "D:\\backup"
 - 타겟에 파일이 없으면 복사합니다.
 - 타겟 파일과 소스 파일의 크기가 다르면 복사합니다.
 - 파일 크기가 같아도 마지막 수정 시간이 1초 이상 다르면 복사합니다.
+- 파일은 임시 파일에 청크 단위로 먼저 복사하고, 성공한 뒤 타겟 파일로 교체합니다.
+- 복사 중에는 현재 파일의 바이트 진행률을 보고하고, 파일 단위 일시 오류는 짧게 재시도합니다.
 - 복사 후 타겟 파일의 마지막 수정 시간을 소스 파일과 맞춥니다.
 - `Mirror source` 모드에서도 소스 탐색이나 복사 중 실패가 있으면 안전을 위해 삭제 단계는 건너뜁니다.
 - 타겟 경로가 소스와 같거나 소스 내부인 경우 재귀 복사를 막기 위해 건너뜁니다.
@@ -196,6 +206,7 @@ Git에 포함:
 - `scripts/simple-sync-robocopy.cmd`
 - `scripts/publish-installer.ps1`
 - `installer/simple-sync.iss`
+- `tests/SimpleSync.Tests`
 - 아이콘 파일과 아이콘 생성 스크립트
 - AI/하네스/인수인계 문서
 

@@ -17,6 +17,14 @@ dotnet build
 
 Expected result: build succeeds with zero errors.
 
+## Test
+
+```powershell
+dotnet run --project .\tests\SimpleSync.Tests\SimpleSync.Tests.csproj
+```
+
+Expected result: all console checks print `PASS`.
+
 ## Run
 
 ```powershell
@@ -42,6 +50,8 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Start the app and confirm existing `config.toml` values load.
 - Add at least two enabled pairs and confirm both are saved.
 - Click `Now` and confirm changed files copy from source to target.
+- Confirm the `Progress` and `Current` columns update while sync is running.
+- Confirm Activity can be filtered by `All`, `Selected`, and `Errors`.
 - Confirm unchanged files are skipped on the next run.
 - Confirm the default `Copy changes` mode preserves files that exist only in the target.
 - Set one pair to `Mirror source` and confirm target-only files are deleted only after source files copy successfully.

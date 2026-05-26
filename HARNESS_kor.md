@@ -17,6 +17,14 @@ dotnet build
 
 기대 결과: 오류 없이 빌드가 성공합니다.
 
+## 테스트
+
+```powershell
+dotnet run --project .\tests\SimpleSync.Tests\SimpleSync.Tests.csproj
+```
+
+기대 결과: 콘솔 검증이 모두 `PASS`로 출력됩니다.
+
 ## 실행
 
 ```powershell
@@ -42,6 +50,8 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - 앱을 시작하고 기존 `config.toml` 값이 로드되는지 확인합니다.
 - 활성화된 동기화 쌍을 최소 2개 추가하고 둘 다 저장되는지 확인합니다.
 - `Now`를 클릭하고 변경 파일이 소스에서 타겟으로 복사되는지 확인합니다.
+- 동기화 실행 중 `Progress`와 `Current` 컬럼이 갱신되는지 확인합니다.
+- Activity 로그를 `All`, `Selected`, `Errors`로 필터링할 수 있는지 확인합니다.
 - 다음 실행에서 변경 없는 파일이 건너뛰어지는지 확인합니다.
 - 기본 `Copy changes` 모드에서 타겟에만 있는 파일이 유지되는지 확인합니다.
 - 한 쌍을 `Mirror source`로 설정하고, 소스 파일 복사가 성공한 뒤 타겟에만 있는 파일이 삭제되는지 확인합니다.
