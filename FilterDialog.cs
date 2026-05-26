@@ -112,8 +112,8 @@ public sealed class FilterDialog : Form
         presetPanel.Controls.Add(presets, 0, 1);
         root.Controls.Add(presetPanel, 0, 1);
 
-        root.Controls.Add(CreateInputGroup("Extensions", "One extension per line, for example .md or pdf", _extensionsInput), 0, 2);
-        root.Controls.Add(CreateInputGroup("Specific files", "One relative file path per line, for example README.md or docs/setup.md", _filesInput), 0, 3);
+        root.Controls.Add(CreateInputGroup("Extensions", "Separate values with comma, semicolon, or new line. Example: .md, .pdf", _extensionsInput), 0, 2);
+        root.Controls.Add(CreateInputGroup("Specific files", "Relative file paths. Example: README.md, docs/setup.md", _filesInput), 0, 3);
         root.Controls.Add(CreateInputGroup("Include patterns", "Optional glob patterns. Empty means all files unless extensions or files are set.", _includeInput), 0, 4);
         root.Controls.Add(CreateInputGroup("Exclude patterns", "Exclude wins over every include rule.", _excludeInput), 0, 5);
 
@@ -187,10 +187,10 @@ public sealed class FilterDialog : Form
 
     private void LoadValues()
     {
-        _extensionsInput.Text = string.Join(Environment.NewLine, Extensions);
-        _filesInput.Text = string.Join(Environment.NewLine, Files);
-        _includeInput.Text = string.Join(Environment.NewLine, IncludePatterns);
-        _excludeInput.Text = string.Join(Environment.NewLine, ExcludePatterns);
+        _extensionsInput.Text = FormatValues(Extensions);
+        _filesInput.Text = FormatValues(Files);
+        _includeInput.Text = FormatValues(IncludePatterns);
+        _excludeInput.Text = FormatValues(ExcludePatterns);
         _includeSubdirectoriesCheck.Checked = IncludeSubdirectories;
     }
 
@@ -225,15 +225,15 @@ public sealed class FilterDialog : Form
 
     private void ApplySelectedPresets()
     {
-        _extensionsInput.Text = FormatLines(FilterPreset.MergeValues(_extensionsInput.Text, _selectedPresets, preset => preset.Extensions));
-        _filesInput.Text = FormatLines(FilterPreset.MergeValues(_filesInput.Text, _selectedPresets, preset => preset.Files));
-        _includeInput.Text = FormatLines(FilterPreset.MergeValues(_includeInput.Text, _selectedPresets, preset => preset.IncludePatterns));
-        _excludeInput.Text = FormatLines(FilterPreset.MergeValues(_excludeInput.Text, _selectedPresets, preset => preset.ExcludePatterns));
+        _extensionsInput.Text = FormatValues(FilterPreset.MergeValues(_extensionsInput.Text, _selectedPresets, preset => preset.Extensions));
+        _filesInput.Text = FormatValues(FilterPreset.MergeValues(_filesInput.Text, _selectedPresets, preset => preset.Files));
+        _includeInput.Text = FormatValues(FilterPreset.MergeValues(_includeInput.Text, _selectedPresets, preset => preset.IncludePatterns));
+        _excludeInput.Text = FormatValues(FilterPreset.MergeValues(_excludeInput.Text, _selectedPresets, preset => preset.ExcludePatterns));
     }
 
-    private static string FormatLines(IEnumerable<string> values)
+    private static string FormatValues(IEnumerable<string> values)
     {
-        return string.Join(Environment.NewLine, values);
+        return string.Join(", ", values);
     }
 
     private static List<FilterPreset> NormalizePresets(IEnumerable<FilterPreset> presets)
