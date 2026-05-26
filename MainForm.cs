@@ -1083,7 +1083,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        using var dialog = new FilterDialog(pair, _filterPresets);
+        using var dialog = new FilterDialog(pair, _filterPresets, _localization);
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
             return;

@@ -14,6 +14,7 @@ await Run("config round-trips sync filters", ConfigRoundTripsSyncFilters);
 await Run("config round-trips filter presets", ConfigRoundTripsFilterPresets);
 await Run("filter presets merge selected values without duplicates", FilterPresetsMergeSelectedValuesWithoutDuplicates);
 await Run("filter summary shows only all files or filtered", FilterSummaryShowsOnlyAllFilesOrFiltered);
+await Run("filter dialog title text is localizable", FilterDialogTitleTextIsLocalizable);
 await Run("localization falls back to Korean for unsupported language", LocalizationFallsBackToKoreanForUnsupportedLanguage);
 await Run("localization returns key for missing text", LocalizationReturnsKeyForMissingText);
 await Run("localization formats strings", LocalizationFormatsStrings);
@@ -349,6 +350,18 @@ static Task FilterSummaryShowsOnlyAllFilesOrFiltered()
 
     var detail = SyncFilter.FromPair(new SyncPair { Extensions = [".docx", ".xlsx"] }).Detail;
     Assert(detail.Contains(".docx", StringComparison.OrdinalIgnoreCase), "filter detail should keep full values for tooltip");
+
+    return Task.CompletedTask;
+}
+
+static Task FilterDialogTitleTextIsLocalizable()
+{
+    var pair = new SyncPair { Name = "Docs" };
+    var korean = new LocalizationService("ko-KR");
+    var english = new LocalizationService("en-US");
+
+    Assert(FilterDialog.FormatTitle(pair, korean) == "\"Docs\" 필터", "Korean dialog title should be localized");
+    Assert(FilterDialog.FormatTitle(pair, english) == "Filter for \"Docs\"", "English dialog title should be localized");
 
     return Task.CompletedTask;
 }
