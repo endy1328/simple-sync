@@ -63,7 +63,7 @@ public sealed class FilterDialog : Form
             RowCount = 8,
             Padding = new Padding(16)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
@@ -75,7 +75,7 @@ public sealed class FilterDialog : Form
 
         var intro = new Label
         {
-            Text = "Filter rules are applied per sync pair. Excluded files are not copied or deleted.\r\nPreset buttons stay active when clicked and append their configured values to the fields below.",
+            Text = "Extensions, Specific files, and Include patterns are combined as OR rules: a file is included if it matches any one of them.\r\nExclude patterns are applied last and always win, even when a file was included above.",
             AutoSize = false,
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 0, 0, 10)
@@ -112,10 +112,10 @@ public sealed class FilterDialog : Form
         presetPanel.Controls.Add(presets, 0, 1);
         root.Controls.Add(presetPanel, 0, 1);
 
-        root.Controls.Add(CreateInputGroup("Extensions", "Separate values with comma, semicolon, or new line. Example: .md, .pdf", _extensionsInput), 0, 2);
-        root.Controls.Add(CreateInputGroup("Specific files", "Relative file paths. Example: README.md, docs/setup.md", _filesInput), 0, 3);
-        root.Controls.Add(CreateInputGroup("Include patterns", "Optional glob patterns. Empty means all files unless extensions or files are set.", _includeInput), 0, 4);
-        root.Controls.Add(CreateInputGroup("Exclude patterns", "Exclude wins over every include rule.", _excludeInput), 0, 5);
+        root.Controls.Add(CreateInputGroup("Extensions", "File types to include. Example: .md, .pdf, .jpg", "Use this when every file with the same extension should sync.", _extensionsInput), 0, 2);
+        root.Controls.Add(CreateInputGroup("Specific files", "Exact files from the source folder. Example: README.md, docs/setup.md", "Use source-relative paths. For C:\\source\\docs\\setup.md, enter docs/setup.md.", _filesInput), 0, 3);
+        root.Controls.Add(CreateInputGroup("Include patterns", "Folder or filename rules to include. Example: docs/**, reports/*.pdf", "Use glob-style rules when extensions or exact files are not enough.", _includeInput), 0, 4);
+        root.Controls.Add(CreateInputGroup("Exclude patterns", "Always excluded after include rules. Example: bin/**, obj/**, *.tmp", "Exclude wins over Extensions, Specific files, and Include patterns.", _excludeInput), 0, 5);
 
         _includeSubdirectoriesCheck.Text = "Include subdirectories";
         _includeSubdirectoriesCheck.AutoSize = true;
@@ -142,7 +142,7 @@ public sealed class FilterDialog : Form
         CancelButton = cancelButton;
     }
 
-    private static Control CreateInputGroup(string title, string hint, TextBox input)
+    private Control CreateInputGroup(string title, string hint, string tooltip, TextBox input)
     {
         var panel = new TableLayoutPanel
         {
@@ -155,7 +155,10 @@ public sealed class FilterDialog : Form
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        panel.Controls.Add(new Label { Text = title, AutoSize = true, Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold) }, 0, 0);
+        var titleLabel = new Label { Text = $"{title}  ?", AutoSize = true, Font = new Font("Segoe UI Semibold", 9F, FontStyle.Bold) };
+        _toolTip.SetToolTip(titleLabel, tooltip);
+        _toolTip.SetToolTip(input, tooltip);
+        panel.Controls.Add(titleLabel, 0, 0);
         panel.Controls.Add(new Label { Text = hint, AutoSize = true, ForeColor = SystemColors.GrayText }, 0, 1);
         input.Dock = DockStyle.Fill;
         input.Multiline = true;

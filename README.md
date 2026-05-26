@@ -216,6 +216,8 @@ include_subdirectories = true
 - `Mirror source` 모드는 복사 후 소스에 없는 타겟 파일과 디렉터리를 삭제해 두 폴더의 파일 구성을 맞춥니다.
 - 필터가 설정된 경우 필터에 포함된 파일만 동기화 대상입니다.
 - `extensions`, `files`, `include`는 OR 조건으로 포함 대상을 정하고, `exclude`는 항상 우선 적용됩니다.
+- `files`는 소스 폴더 기준의 정확한 상대 경로입니다. 예를 들어 `C:\source\docs\setup.md`는 `docs/setup.md`로 입력합니다.
+- `include`와 `exclude`는 glob 패턴입니다. 예: `docs/**`, `reports/*.pdf`, `*.tmp`.
 - 필터 밖 파일은 `Copy changes`에서도 복사하지 않고, `Mirror source`에서도 삭제하지 않습니다.
 - `include_subdirectories = false`이면 소스 루트 직속 파일만 검사합니다.
 - `[[filter_presets]]` 항목을 수정하면 `Edit Filter...` 팝업의 프리셋 버튼 이름과 자동 입력 값을 바꿀 수 있습니다.
