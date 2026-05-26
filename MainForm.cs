@@ -45,12 +45,13 @@ public sealed class MainForm : Form
     private readonly Dictionary<SyncPair, SyncProgress> _progressByPair = [];
     private readonly List<ActivityEntry> _activityEntries = [];
     private readonly string _appVersion = GetAppVersion();
+    private readonly bool _isDebugBuild = IsDebugBuild();
     private AppSkin _currentSkin = AppSkins.Get(null);
     private bool _isLoadingConfig;
 
     public MainForm()
     {
-        Text = "simple sync";
+        Text = FormatWindowTitle(_isDebugBuild);
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
         Font = new Font("Segoe UI", 9F);
         MinimumSize = new Size(860, 560);
@@ -887,7 +888,18 @@ public sealed class MainForm : Form
 
     private string FormatStatus(string status)
     {
-        return $"simple sync {_appVersion} | {status}";
+        return FormatStatus(_appVersion, status, _isDebugBuild);
+    }
+
+    public static string FormatWindowTitle(bool isDebugBuild)
+    {
+        return isDebugBuild ? "simple sync (Debug)" : "simple sync";
+    }
+
+    public static string FormatStatus(string appVersion, string status, bool isDebugBuild)
+    {
+        var buildLabel = isDebugBuild ? " Debug" : string.Empty;
+        return $"simple sync {appVersion}{buildLabel} | {status}";
     }
 
     private static string GetAppVersion()
@@ -902,6 +914,15 @@ public sealed class MainForm : Form
         }
 
         return typeof(MainForm).Assembly.GetName().Version?.ToString(3) ?? "1.1.0";
+    }
+
+    private static bool IsDebugBuild()
+    {
+#if DEBUG
+        return true;
+#else
+        return false;
+#endif
     }
 
     private void GridCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)

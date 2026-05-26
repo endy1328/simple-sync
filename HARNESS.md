@@ -32,7 +32,7 @@ dotnet run
 ```
 
 The app opens a Windows Forms UI titled `simple sync`.
-Debug runs use a different single-instance mutex from Release, so an installed Release app and a development `dotnet run` app can run at the same time for comparison.
+Debug runs use a different single-instance mutex from Release, so an installed Release app and a development `dotnet run` app can run at the same time for comparison. Debug runs show `(Debug)` in the window title and `Debug` in the bottom status text.
 
 ## Publish
 
@@ -52,6 +52,7 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 
 - Start the app and confirm existing `config.toml` values load.
 - With an installed Release app already open, run `dotnet run` and confirm the Debug app can open side by side.
+- Confirm the Debug app title shows `simple sync (Debug)` and the bottom status includes `Debug`.
 - Add at least two enabled pairs and confirm both are saved.
 - Click `Add Pair` and confirm the new pair starts unchecked in the `On` column.
 - Click `Now` and confirm changed files copy from source to target.

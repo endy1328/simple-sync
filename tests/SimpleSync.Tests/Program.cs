@@ -5,6 +5,7 @@ await Run("sync without progress callback still copies files", SyncWithoutProgre
 await Run("copy mode preserves target-only files", CopyModePreservesTargetOnlyFiles);
 await Run("mirror mode deletes target-only files", MirrorModeDeletesTargetOnlyFiles);
 await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
+await Run("debug build labels window title and status", DebugBuildLabelsWindowTitleAndStatus);
 await Run("new sync pair starts disabled", NewSyncPairStartsDisabled);
 await Run("formats selected pair current status", FormatsSelectedPairCurrentStatus);
 
@@ -95,6 +96,27 @@ static Task DebugBuildUsesSeparateSingleInstanceMutex()
     Assert(debugMutex.Length > 0, "debug mutex should not be empty");
     Assert(releaseMutex != debugMutex, "debug and release mutex names should be different");
     Assert(debugMutex.EndsWith("_Debug", StringComparison.Ordinal), "debug mutex should be clearly marked");
+
+    return Task.CompletedTask;
+}
+
+static Task DebugBuildLabelsWindowTitleAndStatus()
+{
+    Assert(
+        SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: false) == "simple sync",
+        "release title should not include debug label");
+
+    Assert(
+        SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: true) == "simple sync (Debug)",
+        "debug title should include debug label");
+
+    Assert(
+        SimpleSync.MainForm.FormatStatus("1.1.0", "Ready", isDebugBuild: false) == "simple sync 1.1.0 | Ready",
+        "release status should not include debug label");
+
+    Assert(
+        SimpleSync.MainForm.FormatStatus("1.1.0", "Ready", isDebugBuild: true) == "simple sync 1.1.0 Debug | Ready",
+        "debug status should include debug label");
 
     return Task.CompletedTask;
 }

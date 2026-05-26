@@ -31,8 +31,8 @@ dotnet run --project .\tests\SimpleSync.Tests\SimpleSync.Tests.csproj
 dotnet run
 ```
 
-`simple sync` 제목의 Windows Forms UI가 열립니다.
-Debug 실행은 Release와 다른 단일 인스턴스 Mutex를 사용하므로 설치된 Release 앱과 개발용 `dotnet run` 앱을 동시에 띄워 비교할 수 있습니다.
+`simple sync (Debug)` 제목의 Windows Forms UI가 열립니다.
+Debug 실행은 Release와 다른 단일 인스턴스 Mutex를 사용하므로 설치된 Release 앱과 개발용 `dotnet run` 앱을 동시에 띄워 비교할 수 있습니다. Debug 실행은 창 제목에 `(Debug)`, 하단 상태 영역에 `Debug`를 표시합니다.
 
 ## 배포
 
@@ -52,6 +52,7 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 
 - 앱을 시작하고 기존 `config.toml` 값이 로드되는지 확인합니다.
 - 설치된 Release 앱을 먼저 실행한 상태에서 `dotnet run`을 실행하고 Debug 앱이 나란히 열리는지 확인합니다.
+- Debug 앱 제목이 `simple sync (Debug)`로 표시되고 하단 상태 영역에 `Debug`가 포함되는지 확인합니다.
 - 활성화된 동기화 쌍을 최소 2개 추가하고 둘 다 저장되는지 확인합니다.
 - `Add Pair`를 클릭하고 새 동기화 쌍의 `On` 컬럼이 체크 해제 상태인지 확인합니다.
 - `Now`를 클릭하고 변경 파일이 소스에서 타겟으로 복사되는지 확인합니다.
