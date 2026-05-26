@@ -17,6 +17,14 @@ dotnet build
 
 기대 결과: 오류 없이 빌드가 성공합니다.
 
+## 테스트
+
+```powershell
+dotnet run --project .\tests\SimpleSync.Tests\SimpleSync.Tests.csproj
+```
+
+기대 결과: 콘솔 검증이 모두 `PASS`로 출력됩니다.
+
 ## 실행
 
 ```powershell
@@ -24,8 +32,11 @@ dotnet run
 ```
 
 `simple sync` 제목의 Windows Forms UI가 열립니다.
+Debug 실행은 Release와 다른 단일 인스턴스 Mutex를 사용하므로 설치된 Release 앱과 개발용 `dotnet run` 앱을 동시에 띄워 비교할 수 있습니다.
 
 ## 배포
+
+현재 배포 버전은 `VERSION` 파일에 있습니다. `scripts\publish-installer.ps1`는 설치 파일을 만들 때 이 값을 읽습니다.
 
 ```powershell
 dotnet publish -c Release -r win-x64 --self-contained false
@@ -40,8 +51,11 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 ## 수동 검증 체크리스트
 
 - 앱을 시작하고 기존 `config.toml` 값이 로드되는지 확인합니다.
+- 설치된 Release 앱을 먼저 실행한 상태에서 `dotnet run`을 실행하고 Debug 앱이 나란히 열리는지 확인합니다.
 - 활성화된 동기화 쌍을 최소 2개 추가하고 둘 다 저장되는지 확인합니다.
 - `Now`를 클릭하고 변경 파일이 소스에서 타겟으로 복사되는지 확인합니다.
+- 동기화 실행 중 `Progress`와 `Current` 컬럼이 갱신되는지 확인합니다.
+- Activity 로그를 `All`, `Selected`, `Errors`로 필터링할 수 있는지 확인합니다.
 - 다음 실행에서 변경 없는 파일이 건너뛰어지는지 확인합니다.
 - 기본 `Copy changes` 모드에서 타겟에만 있는 파일이 유지되는지 확인합니다.
 - 한 쌍을 `Mirror source`로 설정하고, 소스 파일 복사가 성공한 뒤 타겟에만 있는 파일이 삭제되는지 확인합니다.

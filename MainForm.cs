@@ -1,10 +1,15 @@
 using System.ComponentModel;
+using System.Reflection;
+using System.Text;
 
 namespace SimpleSync;
 
 public sealed class MainForm : Form
 {
     private sealed record ModeOption(string Value, string Label);
+    private sealed record ActivityEntry(DateTime Time, string Message, SyncPair? Pair, string PairName, bool IsError);
+
+    private const int MaxActivityEntries = 5_000;
 
     private static readonly ModeOption[] ModeOptions =
     [
@@ -21,6 +26,7 @@ public sealed class MainForm : Form
     private readonly NumericUpDown _intervalInput = new();
     private readonly DataGridView _grid = new();
     private readonly TextBox _log = new();
+    private readonly ComboBox _activityFilterSelect = new();
     private readonly Button _nowButton = new();
     private readonly Button _addButton = new();
     private readonly Button _removeButton = new();
@@ -34,6 +40,10 @@ public sealed class MainForm : Form
     private readonly List<Label> _mutedLabels = [];
     private readonly List<Button> _primaryButtons = [];
     private readonly List<Button> _secondaryButtons = [];
+    private readonly List<ComboBox> _comboBoxes = [];
+    private readonly Dictionary<SyncPair, SyncProgress> _progressByPair = [];
+    private readonly List<ActivityEntry> _activityEntries = [];
+    private readonly string _appVersion = GetAppVersion();
     private AppSkin _currentSkin = AppSkins.Get(null);
     private bool _isLoadingConfig;
 
@@ -148,6 +158,7 @@ public sealed class MainForm : Form
         _skinSelect.DropDownStyle = ComboBoxStyle.DropDownList;
         _skinSelect.Width = 150;
         _skinSelect.Margin = new Padding(16, 2, 0, 0);
+        _comboBoxes.Add(_skinSelect);
         foreach (var skin in AppSkins.All)
         {
             _skinSelect.Items.Add(skin);
@@ -195,6 +206,8 @@ public sealed class MainForm : Form
             DisplayMember = nameof(ModeOption.Label),
             FlatStyle = FlatStyle.Flat
         });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Progress", HeaderText = "Progress", ReadOnly = true, Width = 150, MinimumWidth = 130, SortMode = DataGridViewColumnSortMode.NotSortable });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Current", HeaderText = "Current", ReadOnly = true, Width = 260, MinimumWidth = 180, SortMode = DataGridViewColumnSortMode.NotSortable });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 48, MinimumWidth = 260 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 44, MinimumWidth = 36, SortMode = DataGridViewColumnSortMode.NotSortable, Resizable = DataGridViewTriState.False });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 52, MinimumWidth = 260 });
@@ -216,7 +229,22 @@ public sealed class MainForm : Form
                 e.Value = "->";
                 e.FormattingApplied = true;
             }
+            else if (_grid.Columns[e.ColumnIndex].Name == "Progress" &&
+                e.RowIndex >= 0 &&
+                _grid.Rows[e.RowIndex].DataBoundItem is SyncPair progressPair)
+            {
+                e.Value = GetProgressText(progressPair);
+                e.FormattingApplied = true;
+            }
+            else if (_grid.Columns[e.ColumnIndex].Name == "Current" &&
+                e.RowIndex >= 0 &&
+                _grid.Rows[e.RowIndex].DataBoundItem is SyncPair currentPair)
+            {
+                e.Value = GetCurrentText(currentPair);
+                e.FormattingApplied = true;
+            }
         };
+        _grid.CellPainting += GridCellPainting;
         _grid.DataError += (_, e) =>
         {
             e.ThrowException = false;
@@ -246,6 +274,13 @@ public sealed class MainForm : Form
             }
         };
         _grid.UserDeletedRow += (_, _) => SaveConfig();
+        _grid.SelectionChanged += (_, _) =>
+        {
+            if (GetActivityFilter() == "Selected")
+            {
+                RenderActivityLog();
+            }
+        };
 
         _log.Dock = DockStyle.Fill;
         _log.Multiline = true;
@@ -266,7 +301,7 @@ public sealed class MainForm : Form
             Margin = new Padding(0, 0, 0, 10)
         };
         split.Panel1.Controls.Add(CreateSection("Sync pairs", _grid));
-        split.Panel2.Controls.Add(CreateSection("Activity", _log));
+        split.Panel2.Controls.Add(CreateActivitySection());
         split.SizeChanged += (_, _) =>
         {
             if (splitterInitialized)
@@ -287,7 +322,7 @@ public sealed class MainForm : Form
         _statusLabel.AutoSize = true;
         _mutedLabels.Add(_statusLabel);
         _statusLabel.Padding = new Padding(2, 8, 0, 0);
-        _statusLabel.Text = "Ready";
+        _statusLabel.Text = FormatStatus("Ready");
         root.Controls.Add(_statusLabel, 0, 3);
     }
 
@@ -385,6 +420,55 @@ public sealed class MainForm : Form
 
         content.Margin = new Padding(0);
         section.Controls.Add(content, 0, 1);
+        return section;
+    }
+
+    private Control CreateActivitySection()
+    {
+        var section = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(12),
+            Margin = new Padding(0, 0, 0, 10)
+        };
+        _surfaces.Add(section);
+        section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        section.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var header = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoSize = true,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+        var label = new Label
+        {
+            Text = "Activity",
+            AutoSize = true,
+            Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
+            Margin = new Padding(0)
+        };
+        _titleLabels.Add(label);
+        header.Controls.Add(label, 0, 0);
+
+        _activityFilterSelect.DropDownStyle = ComboBoxStyle.DropDownList;
+        _activityFilterSelect.Width = 120;
+        _activityFilterSelect.Margin = new Padding(8, 0, 0, 0);
+        _activityFilterSelect.Items.AddRange(["All", "Selected", "Errors"]);
+        _activityFilterSelect.SelectedIndex = 0;
+        _activityFilterSelect.SelectedIndexChanged += (_, _) => RenderActivityLog();
+        _comboBoxes.Add(_activityFilterSelect);
+        header.Controls.Add(_activityFilterSelect, 1, 0);
+
+        section.Controls.Add(header, 0, 0);
+        section.Controls.Add(_log, 0, 1);
         return section;
     }
 
@@ -621,8 +705,11 @@ public sealed class MainForm : Form
         }
 
         _autoSyncCheck.ForeColor = skin.Text;
-        _skinSelect.BackColor = skin.Surface;
-        _skinSelect.ForeColor = skin.Text;
+        foreach (var comboBox in _comboBoxes)
+        {
+            comboBox.BackColor = skin.Surface;
+            comboBox.ForeColor = skin.Text;
+        }
         _intervalInput.BackColor = skin.Surface;
         _intervalInput.ForeColor = skin.Text;
 
@@ -656,11 +743,11 @@ public sealed class MainForm : Form
         if (_autoSyncCheck.Checked)
         {
             _timer.Start();
-            _statusLabel.Text = $"Auto sync every {_intervalInput.Value} sec";
+            _statusLabel.Text = FormatStatus($"Auto sync every {_intervalInput.Value} sec");
         }
         else
         {
-            _statusLabel.Text = "Auto sync paused";
+            _statusLabel.Text = FormatStatus("Auto sync paused");
         }
     }
 
@@ -691,15 +778,17 @@ public sealed class MainForm : Form
                 _syncCancellation.Token.ThrowIfCancellationRequested();
 
                 var pairName = PairLogName(pair);
-                AppendLog($"[{pairName}] 시작");
-                AppendLog($"[{pairName}] 모드: {DescribeMode(pair.Mode)}");
-                AppendLog($"[{pairName}] 진행경로: {LogPath(pair.Source)} -> {LogPath(pair.Target)}");
-                var result = await _syncService.SyncAsync([pair], _syncCancellation.Token);
-                AppendLog($"[{pairName}] 완료: 복사 {result.CopiedFiles}, 유지 {result.SkippedFiles}, 삭제 {result.DeletedFiles}, 실패 {result.FailedFiles}");
+                UpdatePairProgress(new SyncProgress { Pair = pair, Phase = SyncPhase.Pending });
+                AppendLog($"[{pairName}] 시작", pair);
+                AppendLog($"[{pairName}] 모드: {DescribeMode(pair.Mode)}", pair);
+                AppendLog($"[{pairName}] 진행경로: {LogPath(pair.Source)} -> {LogPath(pair.Target)}", pair);
+                var progress = new Progress<SyncProgress>(UpdatePairProgress);
+                var result = await _syncService.SyncAsync([pair], progress, _syncCancellation.Token);
+                AppendLog($"[{pairName}] 완료: 복사 {result.CopiedFiles}, 유지 {result.SkippedFiles}, 삭제 {result.DeletedFiles}, 실패 {result.FailedFiles}", pair, result.FailedFiles > 0);
 
                 foreach (var message in result.Messages)
                 {
-                    AppendLog($"[{pairName}] - {message}");
+                    AppendLog($"[{pairName}] - {message}", pair, IsErrorMessage(message));
                 }
             }
         }
@@ -709,7 +798,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            AppendLog($"실패: {ex.Message}");
+            AppendLog($"실패: {ex.Message}", isError: true);
         }
         finally
         {
@@ -774,11 +863,205 @@ public sealed class MainForm : Form
     private void SetBusy(bool busy)
     {
         _nowButton.Enabled = !busy;
-        _statusLabel.Text = busy ? "Syncing..." : (_autoSyncCheck.Checked ? $"Auto sync every {_intervalInput.Value} sec" : "Auto sync paused");
+        _statusLabel.Text = FormatStatus(busy ? "Syncing..." : (_autoSyncCheck.Checked ? $"Auto sync every {_intervalInput.Value} sec" : "Auto sync paused"));
     }
 
-    private void AppendLog(string message)
+    private string FormatStatus(string status)
     {
-        _log.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
+        return $"simple sync {_appVersion} | {status}";
+    }
+
+    private static string GetAppVersion()
+    {
+        var informationalVersion = typeof(MainForm).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return informationalVersion;
+        }
+
+        return typeof(MainForm).Assembly.GetName().Version?.ToString(3) ?? "1.1.0";
+    }
+
+    private void GridCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
+    {
+        if (e.RowIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Progress")
+        {
+            return;
+        }
+
+        e.PaintBackground(e.CellBounds, true);
+
+        if (_grid.Rows[e.RowIndex].DataBoundItem is not SyncPair pair)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        var percent = GetProgressPercent(pair);
+        var text = GetProgressText(pair);
+        var barBounds = new Rectangle(e.CellBounds.Left + 8, e.CellBounds.Top + 9, e.CellBounds.Width - 16, e.CellBounds.Height - 18);
+
+        using var borderPen = new Pen(_currentSkin.Border);
+        using var fillBrush = new SolidBrush(_currentSkin.AccentSoft);
+        if (e.Graphics is null)
+        {
+            e.Handled = true;
+            return;
+        }
+
+        e.Graphics.DrawRectangle(borderPen, barBounds);
+        if (percent > 0)
+        {
+            var fillWidth = Math.Max(1, (int)Math.Round((barBounds.Width - 1) * percent));
+            var fillBounds = new Rectangle(barBounds.Left + 1, barBounds.Top + 1, fillWidth, Math.Max(1, barBounds.Height - 1));
+            e.Graphics.FillRectangle(fillBrush, fillBounds);
+        }
+
+        TextRenderer.DrawText(
+            e.Graphics,
+            text,
+            _grid.Font,
+            e.CellBounds,
+            _currentSkin.Text,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+
+        e.Handled = true;
+    }
+
+    private double GetProgressPercent(SyncPair pair)
+    {
+        if (!_progressByPair.TryGetValue(pair, out var progress))
+        {
+            return 0;
+        }
+
+        if (progress.Phase == SyncPhase.Completed)
+        {
+            return 1;
+        }
+
+        if (progress.TotalFiles is > 0)
+        {
+            return Math.Clamp(progress.ProcessedFiles / (double)progress.TotalFiles.Value, 0, 1);
+        }
+
+        if (progress.CurrentFileTotalBytes is > 0)
+        {
+            return Math.Clamp(progress.CurrentFileBytes / (double)progress.CurrentFileTotalBytes.Value, 0, 1);
+        }
+
+        return progress.Phase == SyncPhase.Pending ? 0 : 0.05;
+    }
+
+    private string GetProgressText(SyncPair pair)
+    {
+        if (!_progressByPair.TryGetValue(pair, out var progress))
+        {
+            return string.Empty;
+        }
+
+        return progress.Phase switch
+        {
+            SyncPhase.Pending => "Pending",
+            SyncPhase.Preparing => "Preparing",
+            SyncPhase.Completed => "Done",
+            SyncPhase.Failed => "Failed",
+            SyncPhase.Deleting => "Deleting",
+            _ when progress.TotalFiles is > 0 => $"{progress.ProcessedFiles} / {progress.TotalFiles}",
+            _ when progress.CurrentFileTotalBytes is > 0 => $"{progress.CurrentFileBytes * 100 / progress.CurrentFileTotalBytes.Value}%",
+            _ => "Working"
+        };
+    }
+
+    private string GetCurrentText(SyncPair pair)
+    {
+        if (!_progressByPair.TryGetValue(pair, out var progress))
+        {
+            return string.Empty;
+        }
+
+        return progress.Message ?? progress.CurrentPath ?? string.Empty;
+    }
+
+    private void UpdatePairProgress(SyncProgress progress)
+    {
+        _progressByPair[progress.Pair] = progress;
+        var rowIndex = FindPairRowIndex(progress.Pair);
+        if (rowIndex >= 0)
+        {
+            _grid.InvalidateRow(rowIndex);
+        }
+    }
+
+    private int FindPairRowIndex(SyncPair pair)
+    {
+        foreach (DataGridViewRow row in _grid.Rows)
+        {
+            if (ReferenceEquals(row.DataBoundItem, pair))
+            {
+                return row.Index;
+            }
+        }
+
+        return -1;
+    }
+
+    private string GetActivityFilter()
+    {
+        return _activityFilterSelect.SelectedItem as string ?? "All";
+    }
+
+    private void RenderActivityLog()
+    {
+        var filter = GetActivityFilter();
+        var selectedPair = _grid.CurrentRow?.DataBoundItem as SyncPair;
+        var builder = new StringBuilder();
+
+        foreach (var entry in _activityEntries.Where(entry => IsActivityVisible(entry, filter, selectedPair)))
+        {
+            builder.Append('[');
+            builder.Append(entry.Time.ToString("HH:mm:ss"));
+            builder.Append("] ");
+            builder.AppendLine(entry.Message);
+        }
+
+        _log.Text = builder.ToString();
+        _log.SelectionStart = _log.TextLength;
+        _log.ScrollToCaret();
+    }
+
+    private static bool IsActivityVisible(ActivityEntry entry, string filter, SyncPair? selectedPair)
+    {
+        return filter switch
+        {
+            "Selected" => entry.Pair is null || (selectedPair is not null && ReferenceEquals(entry.Pair, selectedPair)),
+            "Errors" => entry.IsError,
+            _ => true
+        };
+    }
+
+    private static bool IsErrorMessage(string message)
+    {
+        return message.Contains("실패", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("오류", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("없음", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("건너뜀", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("error", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void AppendLog(string message, SyncPair? pair = null, bool isError = false)
+    {
+        var entry = new ActivityEntry(DateTime.Now, message, pair, pair is null ? string.Empty : PairLogName(pair), isError);
+        _activityEntries.Add(entry);
+        if (_activityEntries.Count > MaxActivityEntries)
+        {
+            _activityEntries.RemoveRange(0, _activityEntries.Count - MaxActivityEntries);
+        }
+
+        RenderActivityLog();
     }
 }

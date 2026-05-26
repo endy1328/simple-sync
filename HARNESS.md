@@ -17,6 +17,14 @@ dotnet build
 
 Expected result: build succeeds with zero errors.
 
+## Test
+
+```powershell
+dotnet run --project .\tests\SimpleSync.Tests\SimpleSync.Tests.csproj
+```
+
+Expected result: all console checks print `PASS`.
+
 ## Run
 
 ```powershell
@@ -24,8 +32,11 @@ dotnet run
 ```
 
 The app opens a Windows Forms UI titled `simple sync`.
+Debug runs use a different single-instance mutex from Release, so an installed Release app and a development `dotnet run` app can run at the same time for comparison.
 
 ## Publish
+
+Current release version lives in `VERSION`. `scripts\publish-installer.ps1` reads that value when generating the installer.
 
 ```powershell
 dotnet publish -c Release -r win-x64 --self-contained false
@@ -40,8 +51,11 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 ## Manual Verification Checklist
 
 - Start the app and confirm existing `config.toml` values load.
+- With an installed Release app already open, run `dotnet run` and confirm the Debug app can open side by side.
 - Add at least two enabled pairs and confirm both are saved.
 - Click `Now` and confirm changed files copy from source to target.
+- Confirm the `Progress` and `Current` columns update while sync is running.
+- Confirm Activity can be filtered by `All`, `Selected`, and `Errors`.
 - Confirm unchanged files are skipped on the next run.
 - Confirm the default `Copy changes` mode preserves files that exist only in the target.
 - Set one pair to `Mirror source` and confirm target-only files are deleted only after source files copy successfully.

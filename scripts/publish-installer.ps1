@@ -1,7 +1,7 @@
 param(
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
-    [string]$Version = "1.0.0",
+    [string]$Version = "",
     [switch]$SkipInno
 )
 
@@ -12,6 +12,18 @@ $artifactsRoot = Join-Path $repoRoot "artifacts"
 $stagingDir = Join-Path $artifactsRoot "installer\staging"
 $distDir = Join-Path $repoRoot "dist"
 $installerScript = Join-Path $repoRoot "installer\simple-sync.iss"
+$versionPath = Join-Path $repoRoot "VERSION"
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    if (Test-Path -LiteralPath $versionPath) {
+        $Version = (Get-Content -LiteralPath $versionPath -Raw).Trim()
+    }
+    else {
+        $Version = "1.1.0"
+    }
+}
+
+$assemblyVersion = "$Version.0"
 
 function Find-InnoCompiler {
     $command = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
@@ -45,6 +57,10 @@ dotnet publish $repoRoot `
     -r $Runtime `
     --self-contained true `
     -p:PublishSingleFile=false `
+    -p:Version=$Version `
+    -p:AssemblyVersion=$assemblyVersion `
+    -p:FileVersion=$assemblyVersion `
+    -p:InformationalVersion=$Version `
     -o $stagingDir
 
 if ($LASTEXITCODE -ne 0) {
@@ -52,6 +68,8 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Copy-Item -LiteralPath (Join-Path $repoRoot "README.md") -Destination $stagingDir -Force
+Copy-Item -LiteralPath (Join-Path $repoRoot "CHANGELOG.md") -Destination $stagingDir -Force
+Copy-Item -LiteralPath (Join-Path $repoRoot "VERSION") -Destination $stagingDir -Force
 Copy-Item -LiteralPath (Join-Path $repoRoot "config.example.toml") -Destination $stagingDir -Force
 
 $stagingAssets = Join-Path $stagingDir "Assets"
