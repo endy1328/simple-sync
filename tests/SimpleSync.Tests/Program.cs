@@ -6,6 +6,7 @@ await Run("copy mode preserves target-only files", CopyModePreservesTargetOnlyFi
 await Run("mirror mode deletes target-only files", MirrorModeDeletesTargetOnlyFiles);
 await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
 await Run("new sync pair starts disabled", NewSyncPairStartsDisabled);
+await Run("formats selected pair current status", FormatsSelectedPairCurrentStatus);
 
 static async Task Run(string name, Func<Task> test)
 {
@@ -107,6 +108,33 @@ static Task NewSyncPairStartsDisabled()
     Assert(pair.Mode == SyncModes.Copy, "new pair should keep copy mode as default");
     Assert(pair.Source == string.Empty, "new pair source should start empty");
     Assert(pair.Target == string.Empty, "new pair target should start empty");
+
+    return Task.CompletedTask;
+}
+
+static Task FormatsSelectedPairCurrentStatus()
+{
+    var pair = new SyncPair { Name = "Docs", Source = @"C:\source", Target = @"D:\target" };
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, null) == "Docs: idle",
+        "missing progress should show idle status");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Preparing }) == "Docs: Scanning files",
+        "preparing should show scanning status");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Copying, CurrentPath = "a.txt" }) == "Docs: Copying a.txt",
+        "copying should include current relative path");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Deleting, CurrentPath = "old.txt" }) == "Docs: Deleting old.txt",
+        "deleting should include current relative path");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Completed }) == "Docs: Done",
+        "completed should show done status");
 
     return Task.CompletedTask;
 }

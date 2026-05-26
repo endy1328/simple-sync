@@ -5,7 +5,7 @@
 ## 1.1.0 - 2026-05-26
 
 - 대용량 파일 복사 안정성을 개선했습니다. 임시 파일에 먼저 복사한 뒤 성공 시 타겟 파일로 교체합니다.
-- `Sync pairs` 목록에 `Progress`, `Current` 컬럼을 추가했습니다.
+- `Sync pairs` 목록에 `Progress` 컬럼을 추가하고, 선택한 쌍의 현재 작업은 Activity 영역 상단에 표시하도록 정리했습니다.
 - Activity 로그에 `All`, `Selected`, `Errors` 필터를 추가했습니다.
 - progress, copy mode, mirror mode를 검증하는 콘솔 테스트를 추가했습니다.
 - Inno Setup 기반 설치 파일 생성 워크플로를 추가했습니다.

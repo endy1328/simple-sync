@@ -55,7 +55,7 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - 활성화된 동기화 쌍을 최소 2개 추가하고 둘 다 저장되는지 확인합니다.
 - `Add Pair`를 클릭하고 새 동기화 쌍의 `On` 컬럼이 체크 해제 상태인지 확인합니다.
 - `Now`를 클릭하고 변경 파일이 소스에서 타겟으로 복사되는지 확인합니다.
-- 동기화 실행 중 `Progress`와 `Current` 컬럼이 갱신되는지 확인합니다.
+- 동기화 실행 중 `Progress` 컬럼이 갱신되고, 선택한 쌍의 현재 상태가 Activity 위에 표시되는지 확인합니다.
 - Activity 로그를 `All`, `Selected`, `Errors`로 필터링할 수 있는지 확인합니다.
 - 다음 실행에서 변경 없는 파일이 건너뛰어지는지 확인합니다.
 - 기본 `Copy changes` 모드에서 타겟에만 있는 파일이 유지되는지 확인합니다.
