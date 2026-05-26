@@ -2,7 +2,7 @@
 
 `simple sync`는 특정 소스 디렉터리에서 타겟 디렉터리로 변경된 파일을 단방향 복사해 주는 간단한 Windows 데스크톱 앱입니다.
 
-현재 버전은 `1.1.1`입니다. 버전 변경 이력은 `CHANGELOG.md`에 기록하고, 현재 배포 버전은 `VERSION` 파일에 저장합니다.
+현재 버전은 `1.2.0`입니다. 버전 변경 이력은 `CHANGELOG.md`에 기록하고, 현재 배포 버전은 `VERSION` 파일에 저장합니다.
 
 ![simple sync - Fluent Light](https://private-user-images.githubusercontent.com/31756669/595345787-bb712b28-88a8-4d24-9b1e-af2e3c5add33.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzkyNjkwNDcsIm5iZiI6MTc3OTI2ODc0NywicGF0aCI6Ii8zMTc1NjY2OS81OTUzNDU3ODctYmI3MTJiMjgtODhhOC00ZDI0LTliMWUtYWYyZTNjNWFkZDMzLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNjA1MjAlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjYwNTIwVDA5MTkwN1omWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWE3M2QxYTk5MzZkMzBjYTJlMzkyYjU2ZTcwNzVhMmYzOTZhYjY1MWJmOTIzZThmZjA1OWY3Njc5ODI4YmZiNzkmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0JnJlc3BvbnNlLWNvbnRlbnQtdHlwZT1pbWFnZSUyRnBuZyJ9.CP1hX1JQDmpXKxCyWGnHmnUhGCigvdiDJbXIYINDsWo)
 
@@ -25,6 +25,7 @@
 - `Add Pair`로 새로 추가한 동기화 쌍은 경로 입력 중 자동 실행되지 않도록 기본 `Off` 상태로 시작합니다.
 - `Sync pairs` 목록의 컬럼 폭을 드래그해서 조절할 수 있고, 긴 경로는 가로 스크롤로 확인할 수 있습니다.
 - `Skin` 콤보박스에서 내장 스킨을 선택할 수 있습니다.
+- `언어` 콤보박스에서 `한국어` 또는 `English`를 선택할 수 있습니다.
 - `Sync pairs`와 `Activity` 사이의 구분선을 드래그해 영역 높이를 조절할 수 있습니다.
 - 마지막으로 종료한 창 크기를 기억하고 다음 실행 때 같은 크기로 엽니다.
 - 하단 상태 영역에 현재 프로그램 버전을 표시합니다.
@@ -32,6 +33,13 @@
 - 중복 실행을 막아 같은 앱이 여러 개 떠서 파일을 잠그는 상황을 줄입니다.
 
 이 앱은 양방향 동기화를 수행하지 않습니다. `Mirror source` 모드에서는 소스에 없는 타겟 파일을 삭제할 수 있으므로 중요한 타겟 폴더에는 주의해서 사용해야 합니다.
+
+## 다국어 설정
+
+- 상단 툴바의 `언어` 콤보박스에서 `한국어` 또는 `English`를 선택할 수 있습니다.
+- 선택한 언어는 `config.toml`의 `language` 값으로 저장되며 다음 실행 시 자동으로 복원됩니다.
+- 기존 설정 파일에 `language`가 없어도 실행 가능하며 기본값은 `ko-KR`입니다.
+- 내부 동기화 방식 값은 계속 `copy`, `mirror`로 저장되므로 기존 설정과 호환됩니다.
 
 ## 실행
 
