@@ -19,6 +19,9 @@ await Run("localization returns key for missing text", LocalizationReturnsKeyFor
 await Run("localization formats strings", LocalizationFormatsStrings);
 await Run("config round-trips language", ConfigRoundTripsLanguage);
 await Run("default filter presets can be localized", DefaultFilterPresetsCanBeLocalized);
+await Run("window title localizes debug state", WindowTitleLocalizesDebugState);
+await Run("selected pair current status localizes", SelectedPairCurrentStatusLocalizes);
+await Run("activity filter visibility uses stable keys", ActivityFilterVisibilityUsesStableKeys);
 await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
 await Run("debug build labels window title and status", DebugBuildLabelsWindowTitleAndStatus);
 await Run("new sync pair starts disabled", NewSyncPairStartsDisabled);
@@ -404,6 +407,44 @@ static Task DefaultFilterPresetsCanBeLocalized()
     Assert(korean[0].Name == "문서", "Korean default preset should use Korean name");
     Assert(english[0].Name == "Documents", "English default preset should use English name");
     Assert(english.Single(item => item.Name == "Exclude temp/build").ExcludePatterns.Contains("node_modules/**"), "localized defaults should preserve preset values");
+
+    return Task.CompletedTask;
+}
+
+static Task WindowTitleLocalizesDebugState()
+{
+    var korean = new LocalizationService("ko-KR");
+    var english = new LocalizationService("en-US");
+
+    Assert(SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: false, korean) == "simple sync", "Korean release title should match app title");
+    Assert(SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: true, english) == "simple sync (Debug)", "English debug title should include Debug");
+
+    return Task.CompletedTask;
+}
+
+static Task SelectedPairCurrentStatusLocalizes()
+{
+    var pair = new SyncPair { Name = "Docs", Source = @"C:\source", Target = @"D:\target" };
+    var korean = new LocalizationService("ko-KR");
+    var english = new LocalizationService("en-US");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, null, korean) == "선택: Docs - 대기",
+        "Korean missing progress should show localized idle status");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Preparing }, english) == "Selected: Docs - Scanning",
+        "English preparing status should show localized scanning status");
+
+    return Task.CompletedTask;
+}
+
+static Task ActivityFilterVisibilityUsesStableKeys()
+{
+    Assert(SimpleSync.MainForm.NormalizeActivityFilter("activity.filter.selected") == "activity.filter.selected", "stable selected key should remain unchanged");
+    Assert(SimpleSync.MainForm.NormalizeActivityFilter("Selected") == "activity.filter.selected", "legacy selected display text should map to stable key");
+    Assert(SimpleSync.MainForm.NormalizeActivityFilter("Errors") == "activity.filter.errors", "legacy errors display text should map to stable key");
+    Assert(SimpleSync.MainForm.NormalizeActivityFilter("anything") == "activity.filter.all", "unknown activity filter should default to all");
 
     return Task.CompletedTask;
 }
