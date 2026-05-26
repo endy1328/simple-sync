@@ -9,6 +9,11 @@ enabled = true
 mode = "copy"
 source = "C:\\source"
 target = "D:\\backup"
+extensions = [".md", ".pdf"]
+files = ["README.md", "docs/setup.md"]
+include = ["docs/**"]
+exclude = ["bin/**", "obj/**", ".git/**", "*.tmp"]
+include_subdirectories = true
 
 [[pairs]]
 name = "Secondary Backup"

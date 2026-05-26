@@ -34,6 +34,7 @@ public sealed class MainForm : Form
     private readonly Button _removeButton = new();
     private readonly Button _browseSourceButton = new();
     private readonly Button _browseTargetButton = new();
+    private readonly Button _editFilterButton = new();
     private readonly CheckBox _autoSyncCheck = new();
     private readonly ComboBox _skinSelect = new();
     private readonly Label _statusLabel = new();
@@ -149,6 +150,10 @@ public sealed class MainForm : Form
         RegisterButton(_browseTargetButton, primary: false);
         _browseTargetButton.Click += (_, _) => BrowseSelectedPath(isSource: false);
 
+        _editFilterButton.Text = "Edit Filter...";
+        RegisterButton(_editFilterButton, primary: false);
+        _editFilterButton.Click += (_, _) => EditSelectedFilter();
+
         toolbar.Controls.Add(CreateToolbarLabel("Every", new Padding(0, 7, 2, 0)));
         toolbar.Controls.Add(_intervalInput);
         toolbar.Controls.Add(CreateToolbarLabel("sec", new Padding(0, 7, 12, 0)));
@@ -158,6 +163,7 @@ public sealed class MainForm : Form
         toolbar.Controls.Add(_removeButton);
         toolbar.Controls.Add(_browseSourceButton);
         toolbar.Controls.Add(_browseTargetButton);
+        toolbar.Controls.Add(_editFilterButton);
 
         _skinSelect.DropDownStyle = ComboBoxStyle.DropDownList;
         _skinSelect.Width = 150;
@@ -210,6 +216,7 @@ public sealed class MainForm : Form
             DisplayMember = nameof(ModeOption.Label),
             FlatStyle = FlatStyle.Flat
         });
+        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Filter", HeaderText = "Filter", ReadOnly = true, Width = 160, MinimumWidth = 120, SortMode = DataGridViewColumnSortMode.NotSortable });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Progress", HeaderText = "Progress", ReadOnly = true, Width = 150, MinimumWidth = 130, SortMode = DataGridViewColumnSortMode.NotSortable });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 48, MinimumWidth = 260 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 44, MinimumWidth = 36, SortMode = DataGridViewColumnSortMode.NotSortable, Resizable = DataGridViewTriState.False });
@@ -239,9 +246,23 @@ public sealed class MainForm : Form
                 e.Value = GetProgressText(progressPair);
                 e.FormattingApplied = true;
             }
+            else if (_grid.Columns[e.ColumnIndex].Name == "Filter" &&
+                e.RowIndex >= 0 &&
+                _grid.Rows[e.RowIndex].DataBoundItem is SyncPair filterPair)
+            {
+                e.Value = SyncFilter.FromPair(filterPair).Summary;
+                e.FormattingApplied = true;
+            }
         };
         _grid.CellPainting += GridCellPainting;
         _grid.CellToolTipTextNeeded += GridCellToolTipTextNeeded;
+        _grid.CellDoubleClick += (_, e) =>
+        {
+            if (e.RowIndex >= 0 && e.ColumnIndex >= 0 && _grid.Columns[e.ColumnIndex].Name == "Filter")
+            {
+                EditSelectedFilter();
+            }
+        };
         _grid.DataError += (_, e) =>
         {
             e.ThrowException = false;
@@ -574,6 +595,10 @@ public sealed class MainForm : Form
         pair.Mode = SyncModes.Normalize(pair.Mode);
         pair.Source ??= string.Empty;
         pair.Target ??= string.Empty;
+        pair.IncludePatterns ??= [];
+        pair.ExcludePatterns ??= [];
+        pair.Extensions ??= [];
+        pair.Files ??= [];
         return pair;
     }
 
@@ -814,9 +839,15 @@ public sealed class MainForm : Form
                 AppendLog($"[{pairName}] 시작", pair);
                 AppendLog($"[{pairName}] 모드: {DescribeMode(pair.Mode)}", pair);
                 AppendLog($"[{pairName}] 진행경로: {LogPath(pair.Source)} -> {LogPath(pair.Target)}", pair);
+                var pairFilter = SyncFilter.FromPair(pair);
+                if (pairFilter.HasRules)
+                {
+                    AppendLog($"[{pairName}] 필터: {pairFilter.Summary}", pair);
+                }
+
                 var progress = new Progress<SyncProgress>(UpdatePairProgress);
                 var result = await _syncService.SyncAsync([pair], progress, _syncCancellation.Token);
-                AppendLog($"[{pairName}] 완료: 복사 {result.CopiedFiles}, 유지 {result.SkippedFiles}, 삭제 {result.DeletedFiles}, 실패 {result.FailedFiles}", pair, result.FailedFiles > 0);
+                AppendLog($"[{pairName}] 완료: 복사 {result.CopiedFiles}, 유지 {result.SkippedFiles}, 삭제 {result.DeletedFiles}, 제외 {result.ExcludedFiles}, 실패 {result.FailedFiles}", pair, result.FailedFiles > 0);
 
                 foreach (var message in result.Messages)
                 {
@@ -889,6 +920,28 @@ public sealed class MainForm : Form
             pair.Target = dialog.SelectedPath;
         }
 
+        _grid.Refresh();
+        SaveConfig();
+    }
+
+    private void EditSelectedFilter()
+    {
+        if (_grid.CurrentRow?.DataBoundItem is not SyncPair pair)
+        {
+            return;
+        }
+
+        using var dialog = new FilterDialog(pair);
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        pair.IncludePatterns = dialog.IncludePatterns;
+        pair.ExcludePatterns = dialog.ExcludePatterns;
+        pair.Extensions = dialog.Extensions;
+        pair.Files = dialog.Files;
+        pair.IncludeSubdirectories = dialog.IncludeSubdirectories;
         _grid.Refresh();
         SaveConfig();
     }
@@ -986,18 +1039,25 @@ public sealed class MainForm : Form
 
     private void GridCellToolTipTextNeeded(object? sender, DataGridViewCellToolTipTextNeededEventArgs e)
     {
-        if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Progress")
+        if (e.RowIndex < 0 || e.ColumnIndex < 0)
         {
             return;
         }
 
-        if (_grid.Rows[e.RowIndex].DataBoundItem is not SyncPair pair ||
-            !_progressByPair.TryGetValue(pair, out var progress))
+        if (_grid.Rows[e.RowIndex].DataBoundItem is not SyncPair pair)
         {
             return;
         }
 
-        e.ToolTipText = FormatCurrentDetail(progress);
+        if (_grid.Columns[e.ColumnIndex].Name == "Progress" &&
+            _progressByPair.TryGetValue(pair, out var progress))
+        {
+            e.ToolTipText = FormatCurrentDetail(progress);
+        }
+        else if (_grid.Columns[e.ColumnIndex].Name == "Filter")
+        {
+            e.ToolTipText = SyncFilter.FromPair(pair).Detail;
+        }
     }
 
     private double GetProgressPercent(SyncPair pair)

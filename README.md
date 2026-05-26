@@ -15,12 +15,13 @@
 - 동기화 쌍별로 `Copy changes` 또는 `Mirror source` 모드를 선택할 수 있습니다.
 - `A -> B`, `C -> D`처럼 2개 이상의 동기화 쌍을 설정할 수 있습니다.
 - 각 동기화 쌍에 이름을 붙이고 Activity 로그에서 이름으로 구분할 수 있습니다.
+- 동기화 쌍별로 확장자, 특정 파일, include/exclude 패턴 필터를 설정할 수 있습니다.
 - 각 동기화 쌍의 진행률은 `Sync pairs` 목록에서 확인하고, 선택한 쌍의 상태는 Activity 헤더에서 확인할 수 있습니다.
 - 현재 처리 중인 파일이나 경로는 `Progress` 셀 툴팁으로 확인할 수 있습니다.
 - Activity 로그는 `All`, `Selected`, `Errors` 기준으로 필터링할 수 있습니다.
 - `Sync Now` 버튼을 누르면 즉시 동기화를 실행합니다.
 - 활성화된 동기화 쌍이 없으면 Activity에 `대상이 없습니다.`를 표시합니다.
-- `Add Pair`, `Remove`, `Choose Source`, `Choose Target` 버튼으로 동기화 쌍을 관리합니다.
+- `Add Pair`, `Remove`, `Choose Source`, `Choose Target`, `Edit Filter...` 버튼으로 동기화 쌍을 관리합니다.
 - `Add Pair`로 새로 추가한 동기화 쌍은 경로 입력 중 자동 실행되지 않도록 기본 `Off` 상태로 시작합니다.
 - `Sync pairs` 목록의 컬럼 폭을 드래그해서 조절할 수 있고, 긴 경로는 가로 스크롤로 확인할 수 있습니다.
 - `Skin` 콤보박스에서 내장 스킨을 선택할 수 있습니다.
@@ -88,6 +89,7 @@ PowerShell fallback:
 
 이 스크립트는 `config.toml`의 `interval_seconds`와 `[[pairs]]` 설정을 읽고 Windows 기본 도구인 `robocopy`를 호출합니다.
 `mode = "copy"`는 robocopy `/E`, `mode = "mirror"`는 robocopy `/MIR`로 실행됩니다.
+앱의 세부 필터 규칙은 Windows Forms 앱 엔진 기준으로 동작합니다. PowerShell fallback은 현재 `include`, `exclude`, `extensions`, `files`, `include_subdirectories`를 적용하지 않으므로 필터가 필요한 경우 앱 실행을 권장합니다.
 
 비상용 robocopy cmd 예제:
 
@@ -164,6 +166,11 @@ enabled = true
 mode = "copy"
 source = "C:\\source"
 target = "D:\\backup"
+extensions = [".md", ".pdf"]
+files = ["README.md", "docs/setup.md"]
+include = ["docs/**"]
+exclude = ["bin/**", "obj/**", ".git/**", "*.tmp"]
+include_subdirectories = true
 ```
 
 ## 스킨
@@ -187,6 +194,10 @@ target = "D:\\backup"
 - 각 동기화 쌍의 `Mode`는 기본값 `Copy changes`입니다.
 - `Copy changes` 모드는 타겟에 없거나 변경된 파일만 복사하고, 타겟에만 있는 파일은 유지합니다.
 - `Mirror source` 모드는 복사 후 소스에 없는 타겟 파일과 디렉터리를 삭제해 두 폴더의 파일 구성을 맞춥니다.
+- 필터가 설정된 경우 필터에 포함된 파일만 동기화 대상입니다.
+- `extensions`, `files`, `include`는 OR 조건으로 포함 대상을 정하고, `exclude`는 항상 우선 적용됩니다.
+- 필터 밖 파일은 `Copy changes`에서도 복사하지 않고, `Mirror source`에서도 삭제하지 않습니다.
+- `include_subdirectories = false`이면 소스 루트 직속 파일만 검사합니다.
 - 기존 `config.toml`에 `mode`가 없으면 자동으로 `copy`로 처리합니다.
 - 소스와 타겟 경로가 모두 비어 있는 동기화 쌍은 저장하지 않고, 다음 실행 시 표시하지 않습니다.
 - 타겟 디렉터리가 없으면 자동으로 생성합니다.
@@ -195,6 +206,7 @@ target = "D:\\backup"
 - 파일 크기가 같아도 마지막 수정 시간이 1초 이상 다르면 복사합니다.
 - 파일은 임시 파일에 청크 단위로 먼저 복사하고, 성공한 뒤 타겟 파일로 교체합니다.
 - 복사 중에는 현재 파일의 바이트 진행률을 보고하고, 파일 단위 일시 오류는 짧게 재시도합니다.
+- Activity 완료 로그에는 복사, 유지, 삭제, 제외, 실패 개수를 표시합니다.
 - 복사 후 타겟 파일의 마지막 수정 시간을 소스 파일과 맞춥니다.
 - `Mirror source` 모드에서도 소스 탐색이나 복사 중 실패가 있으면 안전을 위해 삭제 단계는 건너뜁니다.
 - 타겟 경로가 소스와 같거나 소스 내부인 경우 재귀 복사를 막기 위해 건너뜁니다.

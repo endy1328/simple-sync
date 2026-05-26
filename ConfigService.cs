@@ -90,6 +90,27 @@ public sealed class ConfigService
             {
                 currentPair.Target = Unquote(value);
             }
+            else if (key.Equals("include", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.IncludePatterns = ParseStringArray(value);
+            }
+            else if (key.Equals("exclude", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.ExcludePatterns = ParseStringArray(value);
+            }
+            else if (key.Equals("extensions", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.Extensions = ParseStringArray(value);
+            }
+            else if (key.Equals("files", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.Files = ParseStringArray(value);
+            }
+            else if (key.Equals("include_subdirectories", StringComparison.OrdinalIgnoreCase) &&
+                bool.TryParse(value, out var includeSubdirectories))
+            {
+                currentPair.IncludeSubdirectories = includeSubdirectories;
+            }
         }
 
         return config;
@@ -112,6 +133,15 @@ public sealed class ConfigService
             builder.AppendLine($"mode = \"{Escape(SyncModes.Normalize(pair.Mode))}\"");
             builder.AppendLine($"source = \"{Escape(pair.Source)}\"");
             builder.AppendLine($"target = \"{Escape(pair.Target)}\"");
+            AppendArray(builder, "include", pair.IncludePatterns);
+            AppendArray(builder, "exclude", pair.ExcludePatterns);
+            AppendArray(builder, "extensions", pair.Extensions);
+            AppendArray(builder, "files", pair.Files);
+            if (!pair.IncludeSubdirectories)
+            {
+                builder.AppendLine("include_subdirectories = false");
+            }
+
             builder.AppendLine();
         }
 
@@ -151,5 +181,68 @@ public sealed class ConfigService
     {
         value ??= string.Empty;
         return value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+
+    private static List<string> ParseStringArray(string value)
+    {
+        value = value.Trim();
+        if (value.Length < 2 || value[0] != '[' || value[^1] != ']')
+        {
+            return [];
+        }
+
+        var items = new List<string>();
+        var current = new StringBuilder();
+        var inString = false;
+        var escaped = false;
+
+        foreach (var ch in value[1..^1])
+        {
+            if (escaped)
+            {
+                current.Append(ch);
+                escaped = false;
+                continue;
+            }
+
+            if (ch == '\\' && inString)
+            {
+                escaped = true;
+                continue;
+            }
+
+            if (ch == '"')
+            {
+                if (inString)
+                {
+                    items.Add(current.ToString());
+                    current.Clear();
+                }
+
+                inString = !inString;
+                continue;
+            }
+
+            if (inString)
+            {
+                current.Append(ch);
+            }
+        }
+
+        return items;
+    }
+
+    private static void AppendArray(StringBuilder builder, string key, IEnumerable<string>? values)
+    {
+        var items = (values ?? []).Where(item => !string.IsNullOrWhiteSpace(item)).ToList();
+        if (items.Count == 0)
+        {
+            return;
+        }
+
+        builder.Append(key);
+        builder.Append(" = [");
+        builder.Append(string.Join(", ", items.Select(item => $"\"{Escape(item)}\"")));
+        builder.AppendLine("]");
     }
 }

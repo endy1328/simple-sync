@@ -71,13 +71,14 @@ public sealed class SyncService
             }
 
             var failuresBeforePair = result.FailedFiles;
+            var filter = SyncFilter.FromPair(pair);
             var totalFiles = progress is null
                 ? null
-                : CountSourceFiles(pair, sourceRoot, result, progress, cancellationToken);
+                : CountSourceFiles(pair, sourceRoot, filter, result, progress, cancellationToken);
             var progressState = new SyncProgressState(pair, totalFiles);
             ReportProgress(progress, progressState, SyncPhase.Preparing);
 
-            CopyDirectory(sourceRoot, targetRoot, result, progressState, progress, cancellationToken);
+            CopyDirectory(sourceRoot, targetRoot, filter, result, progressState, progress, cancellationToken);
 
             if (SyncModes.Normalize(pair.Mode) != SyncModes.Mirror)
             {
@@ -93,7 +94,7 @@ public sealed class SyncService
                 continue;
             }
 
-            DeleteTargetExtras(sourceRoot, targetRoot, result, progressState, progress, cancellationToken);
+            DeleteTargetExtras(sourceRoot, targetRoot, filter, result, progressState, progress, cancellationToken);
             ReportProgress(progress, progressState, result.FailedFiles == failuresBeforePair ? SyncPhase.Completed : SyncPhase.Failed);
         }
 
@@ -103,6 +104,7 @@ public sealed class SyncService
     private static void CopyDirectory(
         string sourceRoot,
         string targetRoot,
+        SyncFilter filter,
         SyncResult result,
         SyncProgressState progressState,
         IProgress<SyncProgress>? progress,
@@ -122,6 +124,11 @@ public sealed class SyncService
             try
             {
                 var relativeDirectory = Path.GetRelativePath(sourceRoot, currentDirectory);
+                if (!filter.ShouldTraverseDirectory(relativeDirectory))
+                {
+                    continue;
+                }
+
                 var targetDirectory = relativeDirectory == "."
                     ? targetRoot
                     : Path.Combine(targetRoot, relativeDirectory);
@@ -151,6 +158,13 @@ public sealed class SyncService
 
                 try
                 {
+                    if (!filter.ShouldCopyFile(relativePath))
+                    {
+                        result.ExcludedFiles++;
+                        progressState.ExcludedFiles++;
+                        continue;
+                    }
+
                     progressState.CurrentPath = relativePath;
                     progressState.CurrentFileBytes = 0;
                     progressState.CurrentFileTotalBytes = null;
@@ -191,6 +205,7 @@ public sealed class SyncService
     private static void DeleteTargetExtras(
         string sourceRoot,
         string targetRoot,
+        SyncFilter filter,
         SyncResult result,
         SyncProgressState progressState,
         IProgress<SyncProgress>? progress,
@@ -220,6 +235,11 @@ public sealed class SyncService
             cancellationToken.ThrowIfCancellationRequested();
 
             var relativePath = Path.GetRelativePath(targetRoot, targetFile);
+            if (!filter.ShouldDeleteTargetFile(relativePath))
+            {
+                continue;
+            }
+
             var sourceFile = Path.Combine(sourceRoot, relativePath);
             if (File.Exists(sourceFile))
             {
@@ -248,6 +268,11 @@ public sealed class SyncService
             cancellationToken.ThrowIfCancellationRequested();
 
             var relativePath = Path.GetRelativePath(targetRoot, targetDirectory);
+            if (!filter.ShouldDeleteTargetDirectory(relativePath))
+            {
+                continue;
+            }
+
             var sourceDirectory = Path.Combine(sourceRoot, relativePath);
             if (Directory.Exists(sourceDirectory))
             {
@@ -258,7 +283,10 @@ public sealed class SyncService
             {
                 progressState.CurrentPath = relativePath;
                 ReportProgress(progress, progressState, SyncPhase.Deleting);
-                Directory.Delete(targetDirectory, recursive: true);
+                if (!Directory.EnumerateFileSystemEntries(targetDirectory).Any())
+                {
+                    Directory.Delete(targetDirectory, recursive: false);
+                }
             }
             catch (Exception ex) when (IsFileSystemException(ex))
             {
@@ -273,6 +301,7 @@ public sealed class SyncService
     private static int? CountSourceFiles(
         SyncPair pair,
         string sourceRoot,
+        SyncFilter filter,
         SyncResult result,
         IProgress<SyncProgress>? progress,
         CancellationToken cancellationToken)
@@ -292,13 +321,20 @@ public sealed class SyncService
             {
                 foreach (var file in Directory.EnumerateFiles(currentDirectory))
                 {
-                    _ = file;
-                    count++;
+                    var relativePath = Path.GetRelativePath(sourceRoot, file);
+                    if (filter.ShouldCopyFile(relativePath))
+                    {
+                        count++;
+                    }
                 }
 
                 foreach (var childDirectory in Directory.EnumerateDirectories(currentDirectory))
                 {
-                    directories.Push(childDirectory);
+                    var relativeDirectory = Path.GetRelativePath(sourceRoot, childDirectory);
+                    if (filter.ShouldTraverseDirectory(relativeDirectory))
+                    {
+                        directories.Push(childDirectory);
+                    }
                 }
             }
             catch (Exception ex) when (IsFileSystemException(ex))
@@ -425,6 +461,7 @@ public sealed class SyncService
             CopiedFiles = state.CopiedFiles,
             SkippedFiles = state.SkippedFiles,
             DeletedFiles = state.DeletedFiles,
+            ExcludedFiles = state.ExcludedFiles,
             FailedFiles = state.FailedFiles,
             Message = message
         });
@@ -448,6 +485,7 @@ public sealed class SyncService
         public int CopiedFiles { get; set; }
         public int SkippedFiles { get; set; }
         public int DeletedFiles { get; set; }
+        public int ExcludedFiles { get; set; }
         public int FailedFiles { get; set; }
     }
 

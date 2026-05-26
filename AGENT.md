@@ -15,6 +15,7 @@ Build and maintain a simple Windows application named `simple sync` that synchro
 - `mirror` mode is allowed only as an explicit per-pair option and deletes target-only files after a successful copy pass.
 - Do not add two-way sync unless explicitly requested.
 - Keep large-file copies safe by copying to a temporary file first and replacing the target only after copy success.
+- Treat sync filters as the pair's managed universe. Files outside the filter must not be copied or deleted, including in mirror mode.
 - Keep runtime sync progress separate from persisted `SyncPair` configuration.
 - Keep settings in `config.toml` beside the executable.
 - Keep Debug builds on a separate single-instance mutex from Release so installed builds and `dotnet run` can be compared side by side during development.

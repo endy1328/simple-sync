@@ -55,6 +55,7 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Confirm the Debug app title shows `simple sync (Debug)` and the bottom status includes `Debug`.
 - Add at least two enabled pairs and confirm both are saved.
 - Click `Add Pair` and confirm the new pair starts unchecked in the `On` column.
+- Configure a filter with `Edit Filter...` and confirm the `Filter` summary column and tooltip show the rules.
 - Click `Now` and confirm changed files copy from source to target.
 - Disable all pairs, click `Sync Now`, and confirm Activity shows `대상이 없습니다.` after the start message.
 - Confirm the `Progress` column updates while sync is running, the selected pair's compact status appears in the Activity header, and the current file/path appears in the `Progress` tooltip.
@@ -62,11 +63,13 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Confirm unchanged files are skipped on the next run.
 - Confirm the default `Copy changes` mode preserves files that exist only in the target.
 - Set one pair to `Mirror source` and confirm target-only files are deleted only after source files copy successfully.
+- With a filtered mirror pair, confirm target-only files outside the filter are preserved.
 - Disable one pair and confirm it is not processed.
 - Set a missing source path and confirm the app logs the issue.
 - Set a target path inside its source and confirm the app skips it.
 - Change the interval and confirm the value is saved to `config.toml`.
 - Change a pair mode and confirm `mode = "copy"` or `mode = "mirror"` is saved to `config.toml`.
+- Change filter rules and confirm `include`, `exclude`, `extensions`, `files`, and `include_subdirectories` are saved to `config.toml`.
 
 ## Config Location
 
