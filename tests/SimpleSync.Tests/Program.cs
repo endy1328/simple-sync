@@ -5,6 +5,10 @@ await Run("sync without progress callback still copies files", SyncWithoutProgre
 await Run("copy mode preserves target-only files", CopyModePreservesTargetOnlyFiles);
 await Run("mirror mode deletes target-only files", MirrorModeDeletesTargetOnlyFiles);
 await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
+await Run("debug build labels window title and status", DebugBuildLabelsWindowTitleAndStatus);
+await Run("new sync pair starts disabled", NewSyncPairStartsDisabled);
+await Run("detects no runnable sync pairs", DetectsNoRunnableSyncPairs);
+await Run("formats selected pair current status", FormatsSelectedPairCurrentStatus);
 
 static async Task Run(string name, Func<Task> test)
 {
@@ -93,6 +97,85 @@ static Task DebugBuildUsesSeparateSingleInstanceMutex()
     Assert(debugMutex.Length > 0, "debug mutex should not be empty");
     Assert(releaseMutex != debugMutex, "debug and release mutex names should be different");
     Assert(debugMutex.EndsWith("_Debug", StringComparison.Ordinal), "debug mutex should be clearly marked");
+
+    return Task.CompletedTask;
+}
+
+static Task DebugBuildLabelsWindowTitleAndStatus()
+{
+    Assert(
+        SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: false) == "simple sync",
+        "release title should not include debug label");
+
+    Assert(
+        SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: true) == "simple sync (Debug)",
+        "debug title should include debug label");
+
+    Assert(
+        SimpleSync.MainForm.FormatStatus("1.1.0", "Ready", isDebugBuild: false) == "simple sync 1.1.0 | Ready",
+        "release status should not include debug label");
+
+    Assert(
+        SimpleSync.MainForm.FormatStatus("1.1.0", "Ready", isDebugBuild: true) == "simple sync 1.1.0 Debug | Ready",
+        "debug status should include debug label");
+
+    return Task.CompletedTask;
+}
+
+static Task NewSyncPairStartsDisabled()
+{
+    var pair = SimpleSync.MainForm.CreateNewPair(3);
+
+    Assert(pair.Name == "Pair 3", "new pair should use the requested display number");
+    Assert(!pair.Enabled, "new pair should start disabled until paths are ready");
+    Assert(pair.Mode == SyncModes.Copy, "new pair should keep copy mode as default");
+    Assert(pair.Source == string.Empty, "new pair source should start empty");
+    Assert(pair.Target == string.Empty, "new pair target should start empty");
+
+    return Task.CompletedTask;
+}
+
+static Task DetectsNoRunnableSyncPairs()
+{
+    var pairs = new[]
+    {
+        new SyncPair { Name = "Pair 1", Enabled = false, Source = @"C:\source", Target = @"D:\target" },
+        new SyncPair { Name = "Pair 2", Enabled = false, Source = @"C:\source2", Target = @"D:\target2" }
+    };
+
+    Assert(SimpleSync.MainForm.GetRunnablePairs(pairs).Count == 0, "disabled pairs should not be runnable");
+    Assert(SimpleSync.MainForm.NoSyncTargetsMessage == "대상이 없습니다.", "no target message should be explicit");
+
+    return Task.CompletedTask;
+}
+
+static Task FormatsSelectedPairCurrentStatus()
+{
+    var pair = new SyncPair { Name = "Docs", Source = @"C:\source", Target = @"D:\target" };
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, null) == "Selected: Docs - Idle",
+        "missing progress should show idle status");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Preparing }) == "Selected: Docs - Scanning",
+        "preparing should show scanning status");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Copying, CurrentPath = "a.txt" }) == "Selected: Docs - Copying",
+        "copying header status should stay compact");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Deleting, CurrentPath = "old.txt" }) == "Selected: Docs - Deleting",
+        "deleting header status should stay compact");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Completed }) == "Selected: Docs - Done",
+        "completed should show done status");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentDetail(new SyncProgress { Pair = pair, Phase = SyncPhase.Copying, CurrentPath = "a.txt" }) == "a.txt",
+        "progress tooltip detail should include current relative path");
 
     return Task.CompletedTask;
 }

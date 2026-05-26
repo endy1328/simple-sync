@@ -10,6 +10,7 @@ public sealed class MainForm : Form
     private sealed record ActivityEntry(DateTime Time, string Message, SyncPair? Pair, string PairName, bool IsError);
 
     private const int MaxActivityEntries = 5_000;
+    public const string NoSyncTargetsMessage = "대상이 없습니다.";
 
     private static readonly ModeOption[] ModeOptions =
     [
@@ -27,6 +28,7 @@ public sealed class MainForm : Form
     private readonly DataGridView _grid = new();
     private readonly TextBox _log = new();
     private readonly ComboBox _activityFilterSelect = new();
+    private readonly Label _currentStatusLabel = new();
     private readonly Button _nowButton = new();
     private readonly Button _addButton = new();
     private readonly Button _removeButton = new();
@@ -44,12 +46,13 @@ public sealed class MainForm : Form
     private readonly Dictionary<SyncPair, SyncProgress> _progressByPair = [];
     private readonly List<ActivityEntry> _activityEntries = [];
     private readonly string _appVersion = GetAppVersion();
+    private readonly bool _isDebugBuild = IsDebugBuild();
     private AppSkin _currentSkin = AppSkins.Get(null);
     private bool _isLoadingConfig;
 
     public MainForm()
     {
-        Text = "simple sync";
+        Text = FormatWindowTitle(_isDebugBuild);
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
         Font = new Font("Segoe UI", 9F);
         MinimumSize = new Size(860, 560);
@@ -60,6 +63,7 @@ public sealed class MainForm : Form
 
         BuildLayout();
         LoadConfig();
+        UpdateCurrentStatusLabel();
         ConfigureTimer();
     }
 
@@ -129,7 +133,7 @@ public sealed class MainForm : Form
         RegisterButton(_addButton, primary: false);
         _addButton.Click += (_, _) =>
         {
-            _pairs.Add(new SyncPair { Name = $"Pair {_pairs.Count + 1}" });
+            _pairs.Add(CreateNewPair(_pairs.Count + 1));
             SaveConfig();
         };
 
@@ -207,7 +211,6 @@ public sealed class MainForm : Form
             FlatStyle = FlatStyle.Flat
         });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Progress", HeaderText = "Progress", ReadOnly = true, Width = 150, MinimumWidth = 130, SortMode = DataGridViewColumnSortMode.NotSortable });
-        _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Current", HeaderText = "Current", ReadOnly = true, Width = 260, MinimumWidth = 180, SortMode = DataGridViewColumnSortMode.NotSortable });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Source), HeaderText = "Source", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 48, MinimumWidth = 260 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Direction", HeaderText = "", ReadOnly = true, Width = 44, MinimumWidth = 36, SortMode = DataGridViewColumnSortMode.NotSortable, Resizable = DataGridViewTriState.False });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Target), HeaderText = "Target", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, FillWeight = 52, MinimumWidth = 260 });
@@ -236,15 +239,9 @@ public sealed class MainForm : Form
                 e.Value = GetProgressText(progressPair);
                 e.FormattingApplied = true;
             }
-            else if (_grid.Columns[e.ColumnIndex].Name == "Current" &&
-                e.RowIndex >= 0 &&
-                _grid.Rows[e.RowIndex].DataBoundItem is SyncPair currentPair)
-            {
-                e.Value = GetCurrentText(currentPair);
-                e.FormattingApplied = true;
-            }
         };
         _grid.CellPainting += GridCellPainting;
+        _grid.CellToolTipTextNeeded += GridCellToolTipTextNeeded;
         _grid.DataError += (_, e) =>
         {
             e.ThrowException = false;
@@ -276,6 +273,8 @@ public sealed class MainForm : Form
         _grid.UserDeletedRow += (_, _) => SaveConfig();
         _grid.SelectionChanged += (_, _) =>
         {
+            UpdateCurrentStatusLabel();
+
             if (GetActivityFilter() == "Selected")
             {
                 RenderActivityLog();
@@ -441,10 +440,11 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1,
             Margin = new Padding(0, 0, 0, 8)
         };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
@@ -458,6 +458,16 @@ public sealed class MainForm : Form
         _titleLabels.Add(label);
         header.Controls.Add(label, 0, 0);
 
+        _currentStatusLabel.Text = "No sync pair selected";
+        _currentStatusLabel.Dock = DockStyle.Fill;
+        _currentStatusLabel.AutoSize = false;
+        _currentStatusLabel.Height = 24;
+        _currentStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _currentStatusLabel.AutoEllipsis = true;
+        _currentStatusLabel.Margin = new Padding(12, 0, 8, 0);
+        _mutedLabels.Add(_currentStatusLabel);
+        header.Controls.Add(_currentStatusLabel, 1, 0);
+
         _activityFilterSelect.DropDownStyle = ComboBoxStyle.DropDownList;
         _activityFilterSelect.Width = 120;
         _activityFilterSelect.Margin = new Padding(8, 0, 0, 0);
@@ -465,7 +475,7 @@ public sealed class MainForm : Form
         _activityFilterSelect.SelectedIndex = 0;
         _activityFilterSelect.SelectedIndexChanged += (_, _) => RenderActivityLog();
         _comboBoxes.Add(_activityFilterSelect);
-        header.Controls.Add(_activityFilterSelect, 1, 0);
+        header.Controls.Add(_activityFilterSelect, 2, 0);
 
         section.Controls.Add(header, 0, 0);
         section.Controls.Add(_log, 0, 1);
@@ -565,6 +575,21 @@ public sealed class MainForm : Form
         pair.Source ??= string.Empty;
         pair.Target ??= string.Empty;
         return pair;
+    }
+
+    public static SyncPair CreateNewPair(int displayNumber)
+    {
+        return new SyncPair
+        {
+            Name = $"Pair {displayNumber}",
+            Enabled = false,
+            Mode = SyncModes.Copy
+        };
+    }
+
+    public static List<SyncPair> GetRunnablePairs(IEnumerable<SyncPair> pairs)
+    {
+        return pairs.Select(NormalizePair).Where(pair => pair.Enabled).ToList();
     }
 
     private static string PairLogName(SyncPair pair)
@@ -773,7 +798,14 @@ public sealed class MainForm : Form
             _syncCancellation = new CancellationTokenSource();
             AppendLog($"{reason} 시작");
 
-            foreach (var pair in _pairs.Select(NormalizePair).Where(pair => pair.Enabled).ToList())
+            var runnablePairs = GetRunnablePairs(_pairs);
+            if (runnablePairs.Count == 0)
+            {
+                AppendLog(NoSyncTargetsMessage);
+                return;
+            }
+
+            foreach (var pair in runnablePairs)
             {
                 _syncCancellation.Token.ThrowIfCancellationRequested();
 
@@ -819,6 +851,7 @@ public sealed class MainForm : Form
             _pairs.Remove(pair);
         }
 
+        UpdateCurrentStatusLabel();
         SaveConfig();
     }
 
@@ -868,7 +901,18 @@ public sealed class MainForm : Form
 
     private string FormatStatus(string status)
     {
-        return $"simple sync {_appVersion} | {status}";
+        return FormatStatus(_appVersion, status, _isDebugBuild);
+    }
+
+    public static string FormatWindowTitle(bool isDebugBuild)
+    {
+        return isDebugBuild ? "simple sync (Debug)" : "simple sync";
+    }
+
+    public static string FormatStatus(string appVersion, string status, bool isDebugBuild)
+    {
+        var buildLabel = isDebugBuild ? " Debug" : string.Empty;
+        return $"simple sync {appVersion}{buildLabel} | {status}";
     }
 
     private static string GetAppVersion()
@@ -883,6 +927,15 @@ public sealed class MainForm : Form
         }
 
         return typeof(MainForm).Assembly.GetName().Version?.ToString(3) ?? "1.1.0";
+    }
+
+    private static bool IsDebugBuild()
+    {
+#if DEBUG
+        return true;
+#else
+        return false;
+#endif
     }
 
     private void GridCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)
@@ -931,6 +984,22 @@ public sealed class MainForm : Form
         e.Handled = true;
     }
 
+    private void GridCellToolTipTextNeeded(object? sender, DataGridViewCellToolTipTextNeededEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Progress")
+        {
+            return;
+        }
+
+        if (_grid.Rows[e.RowIndex].DataBoundItem is not SyncPair pair ||
+            !_progressByPair.TryGetValue(pair, out var progress))
+        {
+            return;
+        }
+
+        e.ToolTipText = FormatCurrentDetail(progress);
+    }
+
     private double GetProgressPercent(SyncPair pair)
     {
         if (!_progressByPair.TryGetValue(pair, out var progress))
@@ -976,16 +1045,6 @@ public sealed class MainForm : Form
         };
     }
 
-    private string GetCurrentText(SyncPair pair)
-    {
-        if (!_progressByPair.TryGetValue(pair, out var progress))
-        {
-            return string.Empty;
-        }
-
-        return progress.Message ?? progress.CurrentPath ?? string.Empty;
-    }
-
     private void UpdatePairProgress(SyncProgress progress)
     {
         _progressByPair[progress.Pair] = progress;
@@ -993,6 +1052,11 @@ public sealed class MainForm : Form
         if (rowIndex >= 0)
         {
             _grid.InvalidateRow(rowIndex);
+        }
+
+        if (_grid.CurrentRow?.DataBoundItem is SyncPair selectedPair && ReferenceEquals(selectedPair, progress.Pair))
+        {
+            UpdateCurrentStatusLabel();
         }
     }
 
@@ -1007,6 +1071,50 @@ public sealed class MainForm : Form
         }
 
         return -1;
+    }
+
+    public static string FormatCurrentStatus(SyncPair? pair, SyncProgress? progress)
+    {
+        if (pair is null)
+        {
+            return "No sync pair selected";
+        }
+
+        var pairName = PairLogName(pair);
+        if (progress is null)
+        {
+            return $"Selected: {pairName} - Idle";
+        }
+
+        var status = progress.Phase switch
+        {
+            SyncPhase.Pending => "Pending",
+            SyncPhase.Preparing => "Scanning",
+            SyncPhase.Copying => "Copying",
+            SyncPhase.Deleting => "Deleting",
+            SyncPhase.Completed => "Done",
+            SyncPhase.Failed => "Failed",
+            _ => "Working"
+        };
+
+        return $"Selected: {pairName} - {status}";
+    }
+
+    public static string FormatCurrentDetail(SyncProgress progress)
+    {
+        return progress.Message ?? progress.CurrentPath ?? string.Empty;
+    }
+
+    private void UpdateCurrentStatusLabel()
+    {
+        var selectedPair = _grid.CurrentRow?.DataBoundItem as SyncPair;
+        SyncProgress? progress = null;
+        if (selectedPair is not null)
+        {
+            _progressByPair.TryGetValue(selectedPair, out progress);
+        }
+
+        _currentStatusLabel.Text = FormatCurrentStatus(selectedPair, progress);
     }
 
     private string GetActivityFilter()
