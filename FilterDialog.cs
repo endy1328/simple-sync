@@ -7,13 +7,15 @@ public sealed class FilterDialog : Form
     private readonly TextBox _includeInput = new();
     private readonly TextBox _excludeInput = new();
     private readonly CheckBox _includeSubdirectoriesCheck = new();
+    private readonly ToolTip _toolTip = new();
 
     public FilterDialog(SyncPair pair)
     {
         Text = $"Filter for \"{(string.IsNullOrWhiteSpace(pair.Name) ? "Pair" : pair.Name.Trim())}\"";
         Font = new Font("Segoe UI", 9F);
-        MinimumSize = new Size(620, 560);
-        Size = new Size(720, 640);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        MinimumSize = new Size(860, 680);
+        Size = new Size(940, 760);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = false;
@@ -44,8 +46,8 @@ public sealed class FilterDialog : Form
             RowCount = 8,
             Padding = new Padding(16)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
@@ -56,25 +58,43 @@ public sealed class FilterDialog : Form
 
         var intro = new Label
         {
-            Text = "Filter rules are applied per sync pair. Excluded files are not copied or deleted.",
-            AutoSize = true,
+            Text = "Filter rules are applied per sync pair. Excluded files are not copied or deleted. Preset buttons add recommended values to the fields below.",
+            AutoSize = false,
+            Dock = DockStyle.Fill,
             Margin = new Padding(0, 0, 0, 10)
         };
         root.Controls.Add(intro, 0, 0);
 
-        var presets = new FlowLayoutPanel
+        var presetPanel = new TableLayoutPanel
         {
-            AutoSize = true,
             Dock = DockStyle.Fill,
-            WrapContents = true,
+            ColumnCount = 1,
+            RowCount = 2,
             Margin = new Padding(0, 0, 0, 10)
         };
-        AddPresetButton(presets, "Documents", [".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".md"], []);
-        AddPresetButton(presets, "Images", [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"], []);
-        AddPresetButton(presets, "Code", [".cs", ".js", ".ts", ".py", ".java", ".xml", ".json", ".yml", ".md"], []);
-        AddPresetButton(presets, "Archives", [".zip", ".7z", ".rar", ".tar", ".gz"], []);
-        AddPresetButton(presets, "Exclude temp/build", [], ["*.tmp", "~*", ".git/**", "bin/**", "obj/**", "node_modules/**", ".vs/**"]);
-        root.Controls.Add(presets, 0, 1);
+        presetPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        presetPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        presetPanel.Controls.Add(new Label
+        {
+            Text = "Quick presets: click a button to append suggested extensions or exclude patterns.",
+            AutoSize = true,
+            ForeColor = SystemColors.GrayText,
+            Margin = new Padding(0, 0, 0, 6)
+        }, 0, 0);
+
+        var presets = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            WrapContents = true,
+            Margin = Padding.Empty
+        };
+        AddPresetButton(presets, "Documents", [".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".md"], [], "Adds common document extensions to Extensions.");
+        AddPresetButton(presets, "Images", [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"], [], "Adds common image extensions to Extensions.");
+        AddPresetButton(presets, "Code", [".cs", ".js", ".ts", ".py", ".java", ".xml", ".json", ".yml", ".md"], [], "Adds common source-code extensions to Extensions.");
+        AddPresetButton(presets, "Archives", [".zip", ".7z", ".rar", ".tar", ".gz"], [], "Adds common archive extensions to Extensions.");
+        AddPresetButton(presets, "Exclude temp/build", [], ["*.tmp", "~*", ".git/**", "bin/**", "obj/**", "node_modules/**", ".vs/**"], "Adds common temporary/build paths to Exclude patterns.");
+        presetPanel.Controls.Add(presets, 0, 1);
+        root.Controls.Add(presetPanel, 0, 1);
 
         root.Controls.Add(CreateInputGroup("Extensions", "One extension per line, for example .md or pdf", _extensionsInput), 0, 2);
         root.Controls.Add(CreateInputGroup("Specific files", "One relative file path per line, for example README.md or docs/setup.md", _filesInput), 0, 3);
@@ -113,7 +133,8 @@ public sealed class FilterDialog : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 3,
-            Margin = new Padding(0, 0, 0, 8)
+            Margin = new Padding(0, 0, 0, 10),
+            MinimumSize = new Size(0, 110)
         };
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -122,14 +143,16 @@ public sealed class FilterDialog : Form
         panel.Controls.Add(new Label { Text = hint, AutoSize = true, ForeColor = SystemColors.GrayText }, 0, 1);
         input.Dock = DockStyle.Fill;
         input.Multiline = true;
+        input.MinimumSize = new Size(0, 72);
         input.ScrollBars = ScrollBars.Vertical;
         panel.Controls.Add(input, 0, 2);
         return panel;
     }
 
-    private void AddPresetButton(FlowLayoutPanel parent, string text, string[] extensions, string[] excludes)
+    private void AddPresetButton(FlowLayoutPanel parent, string text, string[] extensions, string[] excludes, string tooltip)
     {
-        var button = new Button { Text = text, AutoSize = true, Margin = new Padding(0, 0, 6, 6) };
+        var button = new Button { Text = text, AutoSize = true, Margin = new Padding(0, 0, 6, 6), Padding = new Padding(8, 2, 8, 2) };
+        _toolTip.SetToolTip(button, tooltip);
         button.Click += (_, _) =>
         {
             if (extensions.Length > 0)
