@@ -5,6 +5,7 @@ await Run("sync without progress callback still copies files", SyncWithoutProgre
 await Run("copy mode preserves target-only files", CopyModePreservesTargetOnlyFiles);
 await Run("mirror mode deletes target-only files", MirrorModeDeletesTargetOnlyFiles);
 await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
+await Run("new sync pair starts disabled", NewSyncPairStartsDisabled);
 
 static async Task Run(string name, Func<Task> test)
 {
@@ -93,6 +94,19 @@ static Task DebugBuildUsesSeparateSingleInstanceMutex()
     Assert(debugMutex.Length > 0, "debug mutex should not be empty");
     Assert(releaseMutex != debugMutex, "debug and release mutex names should be different");
     Assert(debugMutex.EndsWith("_Debug", StringComparison.Ordinal), "debug mutex should be clearly marked");
+
+    return Task.CompletedTask;
+}
+
+static Task NewSyncPairStartsDisabled()
+{
+    var pair = SimpleSync.MainForm.CreateNewPair(3);
+
+    Assert(pair.Name == "Pair 3", "new pair should use the requested display number");
+    Assert(!pair.Enabled, "new pair should start disabled until paths are ready");
+    Assert(pair.Mode == SyncModes.Copy, "new pair should keep copy mode as default");
+    Assert(pair.Source == string.Empty, "new pair source should start empty");
+    Assert(pair.Target == string.Empty, "new pair target should start empty");
 
     return Task.CompletedTask;
 }

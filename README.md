@@ -19,6 +19,7 @@
 - Activity 로그는 `All`, `Selected`, `Errors` 기준으로 필터링할 수 있습니다.
 - `Sync Now` 버튼을 누르면 즉시 동기화를 실행합니다.
 - `Add Pair`, `Remove`, `Choose Source`, `Choose Target` 버튼으로 동기화 쌍을 관리합니다.
+- `Add Pair`로 새로 추가한 동기화 쌍은 경로 입력 중 자동 실행되지 않도록 기본 `Off` 상태로 시작합니다.
 - `Sync pairs` 목록의 컬럼 폭을 드래그해서 조절할 수 있고, 긴 경로는 가로 스크롤로 확인할 수 있습니다.
 - `Skin` 콤보박스에서 내장 스킨을 선택할 수 있습니다.
 - `Sync pairs`와 `Activity` 사이의 구분선을 드래그해 영역 높이를 조절할 수 있습니다.

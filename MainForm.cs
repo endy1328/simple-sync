@@ -129,7 +129,7 @@ public sealed class MainForm : Form
         RegisterButton(_addButton, primary: false);
         _addButton.Click += (_, _) =>
         {
-            _pairs.Add(new SyncPair { Name = $"Pair {_pairs.Count + 1}" });
+            _pairs.Add(CreateNewPair(_pairs.Count + 1));
             SaveConfig();
         };
 
@@ -565,6 +565,16 @@ public sealed class MainForm : Form
         pair.Source ??= string.Empty;
         pair.Target ??= string.Empty;
         return pair;
+    }
+
+    public static SyncPair CreateNewPair(int displayNumber)
+    {
+        return new SyncPair
+        {
+            Name = $"Pair {displayNumber}",
+            Enabled = false,
+            Mode = SyncModes.Copy
+        };
     }
 
     private static string PairLogName(SyncPair pair)

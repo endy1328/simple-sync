@@ -53,6 +53,7 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - 앱을 시작하고 기존 `config.toml` 값이 로드되는지 확인합니다.
 - 설치된 Release 앱을 먼저 실행한 상태에서 `dotnet run`을 실행하고 Debug 앱이 나란히 열리는지 확인합니다.
 - 활성화된 동기화 쌍을 최소 2개 추가하고 둘 다 저장되는지 확인합니다.
+- `Add Pair`를 클릭하고 새 동기화 쌍의 `On` 컬럼이 체크 해제 상태인지 확인합니다.
 - `Now`를 클릭하고 변경 파일이 소스에서 타겟으로 복사되는지 확인합니다.
 - 동기화 실행 중 `Progress`와 `Current` 컬럼이 갱신되는지 확인합니다.
 - Activity 로그를 `All`, `Selected`, `Errors`로 필터링할 수 있는지 확인합니다.

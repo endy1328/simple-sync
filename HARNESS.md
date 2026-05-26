@@ -53,6 +53,7 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Start the app and confirm existing `config.toml` values load.
 - With an installed Release app already open, run `dotnet run` and confirm the Debug app can open side by side.
 - Add at least two enabled pairs and confirm both are saved.
+- Click `Add Pair` and confirm the new pair starts unchecked in the `On` column.
 - Click `Now` and confirm changed files copy from source to target.
 - Confirm the `Progress` and `Current` columns update while sync is running.
 - Confirm Activity can be filtered by `All`, `Selected`, and `Errors`.

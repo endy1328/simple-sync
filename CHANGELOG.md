@@ -9,6 +9,7 @@
 - Activity 로그에 `All`, `Selected`, `Errors` 필터를 추가했습니다.
 - progress, copy mode, mirror mode를 검증하는 콘솔 테스트를 추가했습니다.
 - Inno Setup 기반 설치 파일 생성 워크플로를 추가했습니다.
+- 신규 sync pair는 경로 입력 중 자동 동기화되지 않도록 기본 `Off` 상태로 추가되게 했습니다.
 - UI 레이아웃, 스킨, 아이콘, 단일 인스턴스 실행, 창 크기 복원을 개선했습니다.
 - 개발 편의를 위해 Debug 실행은 설치된 Release 앱과 별도의 단일 인스턴스 키를 사용하도록 했습니다.
 - 기본 `Copy changes` 모드와 별도로 `Mirror source` 모드를 추가했습니다.
