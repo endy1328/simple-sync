@@ -4,6 +4,7 @@ public sealed class AppConfig
 {
     public int IntervalSeconds { get; set; } = 10;
     public string Skin { get; set; } = "syncback_blue";
+    public string Language { get; set; } = LocalizationService.DefaultLanguage;
     public int WindowWidth { get; set; } = 1720;
     public int WindowHeight { get; set; } = 1120;
     public List<FilterPreset> FilterPresets { get; set; } = FilterPreset.CreateDefaults();
@@ -41,6 +42,11 @@ public sealed class FilterPreset
             new() { Name = "Archives", Extensions = [".zip", ".7z", ".tar"] },
             new() { Name = "Exclude temp/build", ExcludePatterns = ["*.tmp", ".git/**", "bin/**", "obj/**", "node_modules/**"] }
         ];
+    }
+
+    public static List<FilterPreset> CreateDefaults(LocalizationService localization)
+    {
+        return CreateDefaults().Select(localization.LocalizeDefaultPreset).ToList();
     }
 
     public static List<string> MergeValues(string current, IEnumerable<FilterPreset> presets, Func<FilterPreset, IEnumerable<string>> selector)

@@ -1,5 +1,6 @@
 interval_seconds = 10
 skin = "syncback_blue"
+language = "ko-KR"
 window_width = 1720
 window_height = 1120
 

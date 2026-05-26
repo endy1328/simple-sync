@@ -14,6 +14,11 @@ await Run("config round-trips sync filters", ConfigRoundTripsSyncFilters);
 await Run("config round-trips filter presets", ConfigRoundTripsFilterPresets);
 await Run("filter presets merge selected values without duplicates", FilterPresetsMergeSelectedValuesWithoutDuplicates);
 await Run("filter summary shows only all files or filtered", FilterSummaryShowsOnlyAllFilesOrFiltered);
+await Run("localization falls back to Korean for unsupported language", LocalizationFallsBackToKoreanForUnsupportedLanguage);
+await Run("localization returns key for missing text", LocalizationReturnsKeyForMissingText);
+await Run("localization formats strings", LocalizationFormatsStrings);
+await Run("config round-trips language", ConfigRoundTripsLanguage);
+await Run("default filter presets can be localized", DefaultFilterPresetsCanBeLocalized);
 await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
 await Run("debug build labels window title and status", DebugBuildLabelsWindowTitleAndStatus);
 await Run("new sync pair starts disabled", NewSyncPairStartsDisabled);
@@ -341,6 +346,64 @@ static Task FilterSummaryShowsOnlyAllFilesOrFiltered()
 
     var detail = SyncFilter.FromPair(new SyncPair { Extensions = [".docx", ".xlsx"] }).Detail;
     Assert(detail.Contains(".docx", StringComparison.OrdinalIgnoreCase), "filter detail should keep full values for tooltip");
+
+    return Task.CompletedTask;
+}
+
+static Task LocalizationFallsBackToKoreanForUnsupportedLanguage()
+{
+    var localization = new LocalizationService("fr-FR");
+
+    Assert(localization.LanguageCode == LocalizationService.DefaultLanguage, "unsupported language should fall back to default");
+    Assert(localization.Text("toolbar.sync_now") == "지금 동기화", "fallback language should be Korean");
+    Assert(localization.ModeLabel(SyncModes.Copy) == "변경 파일 복사", "copy mode should have Korean label");
+    Assert(localization.ModeLabel(SyncModes.Mirror) == "소스 미러링", "mirror mode should have Korean label");
+
+    return Task.CompletedTask;
+}
+
+static Task LocalizationReturnsKeyForMissingText()
+{
+    var localization = new LocalizationService("en-US");
+
+    Assert(localization.Text("missing.key") == "missing.key", "missing localization key should return the key");
+
+    return Task.CompletedTask;
+}
+
+static Task LocalizationFormatsStrings()
+{
+    var localization = new LocalizationService("en-US");
+
+    Assert(
+        localization.Format("activity.completed", "Pair 1", 2, 3, 4, 5, 6) == "[Pair 1] Done: copied 2, skipped 3, deleted 4, excluded 5, failed 6",
+        "formatted English activity text should include all arguments");
+
+    return Task.CompletedTask;
+}
+
+static Task ConfigRoundTripsLanguage()
+{
+    using var workspace = TestWorkspace.Create();
+    var configPath = Path.Combine(workspace.Root, "config.toml");
+    var service = new ConfigService(configPath);
+
+    service.Save(new AppConfig { Language = "en-US", IntervalSeconds = 15 });
+
+    var loaded = service.Load();
+    Assert(loaded.Language == "en-US", "language should round-trip through config.toml");
+
+    return Task.CompletedTask;
+}
+
+static Task DefaultFilterPresetsCanBeLocalized()
+{
+    var korean = FilterPreset.CreateDefaults(new LocalizationService("ko-KR"));
+    var english = FilterPreset.CreateDefaults(new LocalizationService("en-US"));
+
+    Assert(korean[0].Name == "문서", "Korean default preset should use Korean name");
+    Assert(english[0].Name == "Documents", "English default preset should use English name");
+    Assert(english.Single(item => item.Name == "Exclude temp/build").ExcludePatterns.Contains("node_modules/**"), "localized defaults should preserve preset values");
 
     return Task.CompletedTask;
 }
