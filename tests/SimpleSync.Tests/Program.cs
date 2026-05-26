@@ -7,6 +7,7 @@ await Run("mirror mode deletes target-only files", MirrorModeDeletesTargetOnlyFi
 await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
 await Run("debug build labels window title and status", DebugBuildLabelsWindowTitleAndStatus);
 await Run("new sync pair starts disabled", NewSyncPairStartsDisabled);
+await Run("detects no runnable sync pairs", DetectsNoRunnableSyncPairs);
 await Run("formats selected pair current status", FormatsSelectedPairCurrentStatus);
 
 static async Task Run(string name, Func<Task> test)
@@ -130,6 +131,20 @@ static Task NewSyncPairStartsDisabled()
     Assert(pair.Mode == SyncModes.Copy, "new pair should keep copy mode as default");
     Assert(pair.Source == string.Empty, "new pair source should start empty");
     Assert(pair.Target == string.Empty, "new pair target should start empty");
+
+    return Task.CompletedTask;
+}
+
+static Task DetectsNoRunnableSyncPairs()
+{
+    var pairs = new[]
+    {
+        new SyncPair { Name = "Pair 1", Enabled = false, Source = @"C:\source", Target = @"D:\target" },
+        new SyncPair { Name = "Pair 2", Enabled = false, Source = @"C:\source2", Target = @"D:\target2" }
+    };
+
+    Assert(SimpleSync.MainForm.GetRunnablePairs(pairs).Count == 0, "disabled pairs should not be runnable");
+    Assert(SimpleSync.MainForm.NoSyncTargetsMessage == "대상이 없습니다.", "no target message should be explicit");
 
     return Task.CompletedTask;
 }

@@ -8,6 +8,7 @@
 - `Sync pairs` 목록에 `Progress` 컬럼을 추가하고, 선택한 쌍의 상태는 Activity 헤더에 표시하도록 정리했습니다.
 - 현재 처리 중인 파일이나 경로는 `Progress` 셀 툴팁으로 확인할 수 있게 했습니다.
 - Activity 로그에 `All`, `Selected`, `Errors` 필터를 추가했습니다.
+- 활성화된 동기화 대상이 없을 때 Activity에 `대상이 없습니다.`를 표시하도록 했습니다.
 - progress, copy mode, mirror mode를 검증하는 콘솔 테스트를 추가했습니다.
 - Inno Setup 기반 설치 파일 생성 워크플로를 추가했습니다.
 - 신규 sync pair는 경로 입력 중 자동 동기화되지 않도록 기본 `Off` 상태로 추가되게 했습니다.

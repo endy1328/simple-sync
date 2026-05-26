@@ -56,6 +56,7 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Add at least two enabled pairs and confirm both are saved.
 - Click `Add Pair` and confirm the new pair starts unchecked in the `On` column.
 - Click `Now` and confirm changed files copy from source to target.
+- Disable all pairs, click `Sync Now`, and confirm Activity shows `대상이 없습니다.` after the start message.
 - Confirm the `Progress` column updates while sync is running, the selected pair's compact status appears in the Activity header, and the current file/path appears in the `Progress` tooltip.
 - Confirm Activity can be filtered by `All`, `Selected`, and `Errors`.
 - Confirm unchanged files are skipped on the next run.

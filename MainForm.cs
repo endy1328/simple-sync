@@ -10,6 +10,7 @@ public sealed class MainForm : Form
     private sealed record ActivityEntry(DateTime Time, string Message, SyncPair? Pair, string PairName, bool IsError);
 
     private const int MaxActivityEntries = 5_000;
+    public const string NoSyncTargetsMessage = "대상이 없습니다.";
 
     private static readonly ModeOption[] ModeOptions =
     [
@@ -586,6 +587,11 @@ public sealed class MainForm : Form
         };
     }
 
+    public static List<SyncPair> GetRunnablePairs(IEnumerable<SyncPair> pairs)
+    {
+        return pairs.Select(NormalizePair).Where(pair => pair.Enabled).ToList();
+    }
+
     private static string PairLogName(SyncPair pair)
     {
         return string.IsNullOrWhiteSpace(pair.Name) ? "Pair" : pair.Name.Trim();
@@ -792,7 +798,14 @@ public sealed class MainForm : Form
             _syncCancellation = new CancellationTokenSource();
             AppendLog($"{reason} 시작");
 
-            foreach (var pair in _pairs.Select(NormalizePair).Where(pair => pair.Enabled).ToList())
+            var runnablePairs = GetRunnablePairs(_pairs);
+            if (runnablePairs.Count == 0)
+            {
+                AppendLog(NoSyncTargetsMessage);
+                return;
+            }
+
+            foreach (var pair in runnablePairs)
             {
                 _syncCancellation.Token.ThrowIfCancellationRequested();
 

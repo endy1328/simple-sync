@@ -19,6 +19,7 @@
 - 현재 처리 중인 파일이나 경로는 `Progress` 셀 툴팁으로 확인할 수 있습니다.
 - Activity 로그는 `All`, `Selected`, `Errors` 기준으로 필터링할 수 있습니다.
 - `Sync Now` 버튼을 누르면 즉시 동기화를 실행합니다.
+- 활성화된 동기화 쌍이 없으면 Activity에 `대상이 없습니다.`를 표시합니다.
 - `Add Pair`, `Remove`, `Choose Source`, `Choose Target` 버튼으로 동기화 쌍을 관리합니다.
 - `Add Pair`로 새로 추가한 동기화 쌍은 경로 입력 중 자동 실행되지 않도록 기본 `Off` 상태로 시작합니다.
 - `Sync pairs` 목록의 컬럼 폭을 드래그해서 조절할 수 있고, 긴 경로는 가로 스크롤로 확인할 수 있습니다.
