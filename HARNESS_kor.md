@@ -55,6 +55,8 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Debug 앱 제목이 `simple sync (Debug)`로 표시되고 하단 상태 영역에 `Debug`가 포함되는지 확인합니다.
 - 활성화된 동기화 쌍을 최소 2개 추가하고 둘 다 저장되는지 확인합니다.
 - `Add Pair`를 클릭하고 새 동기화 쌍의 `On` 컬럼이 체크 해제 상태인지 확인합니다.
+- `Edit Filter...`로 필터를 설정하고 `Filter` 요약 컬럼과 툴팁에 규칙이 표시되는지 확인합니다.
+- 필터 프리셋 버튼 여러 개를 클릭하고 버튼이 활성 표시를 유지하며, 누른 순서대로 값이 추가되고 중복 입력되지 않는지 확인합니다.
 - `Now`를 클릭하고 변경 파일이 소스에서 타겟으로 복사되는지 확인합니다.
 - 모든 쌍을 비활성화한 뒤 `Sync Now`를 클릭하고 시작 메시지 다음에 Activity에 `대상이 없습니다.`가 표시되는지 확인합니다.
 - 동기화 실행 중 `Progress` 컬럼이 갱신되고, 선택한 쌍의 짧은 상태가 Activity 헤더에 표시되며, 현재 파일/경로가 `Progress` 툴팁에 표시되는지 확인합니다.
@@ -62,11 +64,14 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - 다음 실행에서 변경 없는 파일이 건너뛰어지는지 확인합니다.
 - 기본 `Copy changes` 모드에서 타겟에만 있는 파일이 유지되는지 확인합니다.
 - 한 쌍을 `Mirror source`로 설정하고, 소스 파일 복사가 성공한 뒤 타겟에만 있는 파일이 삭제되는지 확인합니다.
+- 필터가 설정된 mirror 쌍에서 필터 밖 타겟 전용 파일이 보존되는지 확인합니다.
 - 한 쌍을 비활성화하고 처리되지 않는지 확인합니다.
 - 존재하지 않는 소스 경로를 설정하고 앱이 문제를 로그로 남기는지 확인합니다.
 - 타겟 경로를 소스 내부로 설정하고 앱이 건너뛰는지 확인합니다.
 - 간격 값을 변경하고 `config.toml`에 저장되는지 확인합니다.
 - pair 모드를 변경하고 `config.toml`에 `mode = "copy"` 또는 `mode = "mirror"`가 저장되는지 확인합니다.
+- 필터 규칙을 변경하고 `config.toml`에 `include`, `exclude`, `extensions`, `files`, `include_subdirectories`가 저장되는지 확인합니다.
+- `config.toml`의 `[[filter_presets]]` 항목을 수정하고 필터 팝업이 변경된 프리셋 버튼/값을 사용하는지 확인합니다.
 
 ## 설정 위치
 

@@ -4,6 +4,15 @@ await Run("reports progress while copying changed files", ReportsProgressWhileCo
 await Run("sync without progress callback still copies files", SyncWithoutProgressCallbackStillCopiesFiles);
 await Run("copy mode preserves target-only files", CopyModePreservesTargetOnlyFiles);
 await Run("mirror mode deletes target-only files", MirrorModeDeletesTargetOnlyFiles);
+await Run("extension filter copies only matching files", ExtensionFilterCopiesOnlyMatchingFiles);
+await Run("specific file filter copies multiple named files", SpecificFileFilterCopiesMultipleNamedFiles);
+await Run("exclude filter wins over include filter", ExcludeFilterWinsOverIncludeFilter);
+await Run("nested exclude filter preserves included sibling files", NestedExcludeFilterPreservesIncludedSiblingFiles);
+await Run("mirror filter preserves target files outside filter", MirrorFilterPreservesTargetFilesOutsideFilter);
+await Run("mirror top folder filter preserves subdirectory target files", MirrorTopFolderFilterPreservesSubdirectoryTargetFiles);
+await Run("config round-trips sync filters", ConfigRoundTripsSyncFilters);
+await Run("config round-trips filter presets", ConfigRoundTripsFilterPresets);
+await Run("filter presets merge selected values without duplicates", FilterPresetsMergeSelectedValuesWithoutDuplicates);
 await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
 await Run("debug build labels window title and status", DebugBuildLabelsWindowTitleAndStatus);
 await Run("new sync pair starts disabled", NewSyncPairStartsDisabled);
@@ -86,6 +95,233 @@ static async Task MirrorModeDeletesTargetOnlyFiles()
         CancellationToken.None);
 
     Assert(!File.Exists(Path.Combine(workspace.Target, "target-only.txt")), "mirror mode should delete target-only file");
+}
+
+static async Task ExtensionFilterCopiesOnlyMatchingFiles()
+{
+    using var workspace = TestWorkspace.Create();
+    File.WriteAllText(Path.Combine(workspace.Source, "notes.md"), "markdown");
+    File.WriteAllText(Path.Combine(workspace.Source, "image.png"), "image");
+
+    var service = new SyncService();
+    var result = await service.SyncAsync(
+        [new SyncPair { Enabled = true, Mode = SyncModes.Copy, Source = workspace.Source, Target = workspace.Target, Extensions = [".md"] }],
+        null,
+        CancellationToken.None);
+
+    Assert(File.Exists(Path.Combine(workspace.Target, "notes.md")), "matching extension should copy");
+    Assert(!File.Exists(Path.Combine(workspace.Target, "image.png")), "non-matching extension should not copy");
+    Assert(result.ExcludedFiles == 1, "excluded file count should include non-matching extension");
+}
+
+static async Task SpecificFileFilterCopiesMultipleNamedFiles()
+{
+    using var workspace = TestWorkspace.Create();
+    Directory.CreateDirectory(Path.Combine(workspace.Source, "docs"));
+    File.WriteAllText(Path.Combine(workspace.Source, "README.md"), "readme");
+    File.WriteAllText(Path.Combine(workspace.Source, "docs", "setup.md"), "setup");
+    File.WriteAllText(Path.Combine(workspace.Source, "docs", "draft.md"), "draft");
+
+    var service = new SyncService();
+    var result = await service.SyncAsync(
+        [new SyncPair
+        {
+            Enabled = true,
+            Mode = SyncModes.Copy,
+            Source = workspace.Source,
+            Target = workspace.Target,
+            Files = ["README.md", "docs/setup.md"]
+        }],
+        null,
+        CancellationToken.None);
+
+    Assert(File.Exists(Path.Combine(workspace.Target, "README.md")), "first named file should copy");
+    Assert(File.Exists(Path.Combine(workspace.Target, "docs", "setup.md")), "second named file should copy");
+    Assert(!File.Exists(Path.Combine(workspace.Target, "docs", "draft.md")), "unnamed file should not copy");
+    Assert(result.ExcludedFiles == 1, "excluded count should include unnamed file");
+}
+
+static async Task ExcludeFilterWinsOverIncludeFilter()
+{
+    using var workspace = TestWorkspace.Create();
+    Directory.CreateDirectory(Path.Combine(workspace.Source, "docs"));
+    File.WriteAllText(Path.Combine(workspace.Source, "docs", "keep.md"), "keep");
+    File.WriteAllText(Path.Combine(workspace.Source, "docs", "skip.tmp"), "skip");
+
+    var service = new SyncService();
+    var result = await service.SyncAsync(
+        [new SyncPair
+        {
+            Enabled = true,
+            Mode = SyncModes.Copy,
+            Source = workspace.Source,
+            Target = workspace.Target,
+            IncludePatterns = ["docs/**"],
+            ExcludePatterns = ["*.tmp"]
+        }],
+        null,
+        CancellationToken.None);
+
+    Assert(File.Exists(Path.Combine(workspace.Target, "docs", "keep.md")), "included non-excluded file should copy");
+    Assert(!File.Exists(Path.Combine(workspace.Target, "docs", "skip.tmp")), "excluded file should not copy");
+    Assert(result.ExcludedFiles == 1, "excluded count should include excluded file");
+}
+
+static async Task NestedExcludeFilterPreservesIncludedSiblingFiles()
+{
+    using var workspace = TestWorkspace.Create();
+    Directory.CreateDirectory(Path.Combine(workspace.Source, "docs", "private"));
+    File.WriteAllText(Path.Combine(workspace.Source, "docs", "readme.md"), "readme");
+    File.WriteAllText(Path.Combine(workspace.Source, "docs", "private", "secret.md"), "secret");
+
+    var service = new SyncService();
+    var result = await service.SyncAsync(
+        [new SyncPair
+        {
+            Enabled = true,
+            Mode = SyncModes.Copy,
+            Source = workspace.Source,
+            Target = workspace.Target,
+            IncludePatterns = ["docs/**"],
+            ExcludePatterns = ["docs/private/**"]
+        }],
+        null,
+        CancellationToken.None);
+
+    Assert(File.Exists(Path.Combine(workspace.Target, "docs", "readme.md")), "included sibling file should copy");
+    Assert(!File.Exists(Path.Combine(workspace.Target, "docs", "private", "secret.md")), "nested excluded file should not copy");
+    Assert(result.ExcludedFiles == 0, "excluded nested directory should not count as a per-file exclusion");
+}
+
+static async Task MirrorFilterPreservesTargetFilesOutsideFilter()
+{
+    using var workspace = TestWorkspace.Create();
+    File.WriteAllText(Path.Combine(workspace.Source, "keep.md"), "keep");
+    File.WriteAllText(Path.Combine(workspace.Target, "old.md"), "old");
+    File.WriteAllText(Path.Combine(workspace.Target, "photo.png"), "photo");
+
+    var service = new SyncService();
+    var result = await service.SyncAsync(
+        [new SyncPair { Enabled = true, Mode = SyncModes.Mirror, Source = workspace.Source, Target = workspace.Target, Extensions = [".md"] }],
+        null,
+        CancellationToken.None);
+
+    Assert(File.Exists(Path.Combine(workspace.Target, "keep.md")), "matching source file should copy");
+    Assert(!File.Exists(Path.Combine(workspace.Target, "old.md")), "matching target-only file should be deleted");
+    Assert(File.Exists(Path.Combine(workspace.Target, "photo.png")), "outside-filter target file should be preserved");
+    Assert(result.DeletedFiles == 1, "only matching target-only file should be deleted");
+}
+
+static async Task MirrorTopFolderFilterPreservesSubdirectoryTargetFiles()
+{
+    using var workspace = TestWorkspace.Create();
+    File.WriteAllText(Path.Combine(workspace.Source, "keep.md"), "keep");
+    Directory.CreateDirectory(Path.Combine(workspace.Target, "sub"));
+    File.WriteAllText(Path.Combine(workspace.Target, "old.md"), "old");
+    File.WriteAllText(Path.Combine(workspace.Target, "sub", "nested.md"), "nested");
+
+    var service = new SyncService();
+    var result = await service.SyncAsync(
+        [new SyncPair
+        {
+            Enabled = true,
+            Mode = SyncModes.Mirror,
+            Source = workspace.Source,
+            Target = workspace.Target,
+            Extensions = [".md"],
+            IncludeSubdirectories = false
+        }],
+        null,
+        CancellationToken.None);
+
+    Assert(File.Exists(Path.Combine(workspace.Target, "keep.md")), "matching root source file should copy");
+    Assert(!File.Exists(Path.Combine(workspace.Target, "old.md")), "matching root target-only file should be deleted");
+    Assert(File.Exists(Path.Combine(workspace.Target, "sub", "nested.md")), "subdirectory target file should be preserved when subdirectories are off");
+    Assert(Directory.Exists(Path.Combine(workspace.Target, "sub")), "subdirectory should be preserved when subdirectories are off");
+    Assert(result.DeletedFiles == 1, "only matching root target-only file should be deleted");
+}
+
+static Task ConfigRoundTripsSyncFilters()
+{
+    using var workspace = TestWorkspace.Create();
+    var configPath = Path.Combine(workspace.Root, "config.toml");
+    var service = new ConfigService(configPath);
+    service.Save(new AppConfig
+    {
+        IntervalSeconds = 15,
+        Pairs =
+        [
+            new SyncPair
+            {
+                Name = "Filtered",
+                Enabled = true,
+                Mode = SyncModes.Copy,
+                Source = @"C:\source",
+                Target = @"D:\target",
+                IncludePatterns = ["docs/**", "**/*.md"],
+                ExcludePatterns = ["bin/**", "*.tmp"],
+                Extensions = [".pdf", "docx"],
+                Files = ["README.md", "docs/setup.md"],
+                IncludeSubdirectories = false
+            }
+        ]
+    });
+
+    var loaded = service.Load();
+    var pair = loaded.Pairs.Single();
+    Assert(pair.IncludePatterns.SequenceEqual(["docs/**", "**/*.md"]), "include patterns should round-trip");
+    Assert(pair.ExcludePatterns.SequenceEqual(["bin/**", "*.tmp"]), "exclude patterns should round-trip");
+    Assert(pair.Extensions.SequenceEqual([".pdf", "docx"]), "extensions should round-trip");
+    Assert(pair.Files.SequenceEqual(["README.md", "docs/setup.md"]), "files should round-trip");
+    Assert(!pair.IncludeSubdirectories, "include_subdirectories should round-trip");
+
+    return Task.CompletedTask;
+}
+
+static Task ConfigRoundTripsFilterPresets()
+{
+    using var workspace = TestWorkspace.Create();
+    var configPath = Path.Combine(workspace.Root, "config.toml");
+    var service = new ConfigService(configPath);
+    service.Save(new AppConfig
+    {
+        IntervalSeconds = 15,
+        FilterPresets =
+        [
+            new FilterPreset
+            {
+                Name = "Docs",
+                Extensions = [".docx", ".md"],
+                Files = ["README.md"],
+                IncludePatterns = ["docs/**"],
+                ExcludePatterns = ["docs/private/**"]
+            }
+        ]
+    });
+
+    var loaded = service.Load();
+    var preset = loaded.FilterPresets.Single();
+    Assert(preset.Name == "Docs", "filter preset name should round-trip");
+    Assert(preset.Extensions.SequenceEqual([".docx", ".md"]), "filter preset extensions should round-trip");
+    Assert(preset.Files.SequenceEqual(["README.md"]), "filter preset files should round-trip");
+    Assert(preset.IncludePatterns.SequenceEqual(["docs/**"]), "filter preset include patterns should round-trip");
+    Assert(preset.ExcludePatterns.SequenceEqual(["docs/private/**"]), "filter preset exclude patterns should round-trip");
+
+    return Task.CompletedTask;
+}
+
+static Task FilterPresetsMergeSelectedValuesWithoutDuplicates()
+{
+    var documents = new FilterPreset { Name = "Documents", Extensions = [".docx", ".xlsx", ".pdf", ".txt", ".md"] };
+    var images = new FilterPreset { Name = "Images", Extensions = [".png", ".jpg", ".svg"] };
+    var code = new FilterPreset { Name = "Code", Extensions = [".cs", ".js", ".json", ".xml", ".md"] };
+    var merged = FilterPreset.MergeValues(".docx", [documents, images, code, documents], preset => preset.Extensions);
+
+    Assert(
+        merged.SequenceEqual([".docx", ".xlsx", ".pdf", ".txt", ".md", ".png", ".jpg", ".svg", ".cs", ".js", ".json", ".xml"]),
+        "selected preset values should append in click order and avoid duplicates");
+
+    return Task.CompletedTask;
 }
 
 static Task DebugBuildUsesSeparateSingleInstanceMutex()
