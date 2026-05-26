@@ -20,6 +20,8 @@ public sealed class ConfigService
 
         var config = new AppConfig();
         SyncPair? currentPair = null;
+        FilterPreset? currentPreset = null;
+        var loadedFilterPresets = false;
 
         foreach (var rawLine in File.ReadAllLines(_configPath, Encoding.UTF8))
         {
@@ -31,8 +33,23 @@ public sealed class ConfigService
 
             if (line.Equals("[[pairs]]", StringComparison.OrdinalIgnoreCase))
             {
+                currentPreset = null;
                 currentPair = new SyncPair();
                 config.Pairs.Add(currentPair);
+                continue;
+            }
+
+            if (line.Equals("[[filter_presets]]", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair = null;
+                if (!loadedFilterPresets)
+                {
+                    config.FilterPresets.Clear();
+                    loadedFilterPresets = true;
+                }
+
+                currentPreset = new FilterPreset();
+                config.FilterPresets.Add(currentPreset);
                 continue;
             }
 
@@ -45,7 +62,7 @@ public sealed class ConfigService
             var key = line[..separator].Trim();
             var value = line[(separator + 1)..].Trim();
 
-            if (currentPair is null)
+            if (currentPair is null && currentPreset is null)
             {
                 if (key.Equals("interval_seconds", StringComparison.OrdinalIgnoreCase) &&
                     int.TryParse(value, out var seconds))
@@ -66,6 +83,37 @@ public sealed class ConfigService
                 {
                     config.WindowHeight = Math.Clamp(height, 560, 10_000);
                 }
+                continue;
+            }
+
+            if (currentPreset is not null)
+            {
+                if (key.Equals("name", StringComparison.OrdinalIgnoreCase))
+                {
+                    currentPreset.Name = Unquote(value);
+                }
+                else if (key.Equals("extensions", StringComparison.OrdinalIgnoreCase))
+                {
+                    currentPreset.Extensions = ParseStringArray(value);
+                }
+                else if (key.Equals("files", StringComparison.OrdinalIgnoreCase))
+                {
+                    currentPreset.Files = ParseStringArray(value);
+                }
+                else if (key.Equals("include", StringComparison.OrdinalIgnoreCase))
+                {
+                    currentPreset.IncludePatterns = ParseStringArray(value);
+                }
+                else if (key.Equals("exclude", StringComparison.OrdinalIgnoreCase))
+                {
+                    currentPreset.ExcludePatterns = ParseStringArray(value);
+                }
+
+                continue;
+            }
+
+            if (currentPair is null)
+            {
                 continue;
             }
 
@@ -125,6 +173,17 @@ public sealed class ConfigService
         builder.AppendLine($"window_height = {Math.Clamp(config.WindowHeight, 560, 10_000)}");
         builder.AppendLine();
 
+        foreach (var preset in NormalizeFilterPresets(config.FilterPresets))
+        {
+            builder.AppendLine("[[filter_presets]]");
+            builder.AppendLine($"name = \"{Escape(preset.Name)}\"");
+            AppendArray(builder, "extensions", preset.Extensions);
+            AppendArray(builder, "files", preset.Files);
+            AppendArray(builder, "include", preset.IncludePatterns);
+            AppendArray(builder, "exclude", preset.ExcludePatterns);
+            builder.AppendLine();
+        }
+
         foreach (var pair in config.Pairs)
         {
             builder.AppendLine("[[pairs]]");
@@ -146,6 +205,32 @@ public sealed class ConfigService
         }
 
         File.WriteAllText(_configPath, builder.ToString(), Encoding.UTF8);
+    }
+
+    private static List<FilterPreset> NormalizeFilterPresets(IEnumerable<FilterPreset>? presets)
+    {
+        var normalized = (presets ?? [])
+            .Where(preset => !string.IsNullOrWhiteSpace(preset.Name))
+            .Select(preset => new FilterPreset
+            {
+                Name = preset.Name.Trim(),
+                Extensions = CleanValues(preset.Extensions),
+                Files = CleanValues(preset.Files),
+                IncludePatterns = CleanValues(preset.IncludePatterns),
+                ExcludePatterns = CleanValues(preset.ExcludePatterns)
+            })
+            .ToList();
+
+        return normalized.Count == 0 ? FilterPreset.CreateDefaults() : normalized;
+    }
+
+    private static List<string> CleanValues(IEnumerable<string>? values)
+    {
+        return (values ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static string StripComment(string line)

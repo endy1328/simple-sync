@@ -160,6 +160,26 @@ skin = "syncback_blue"
 window_width = 1720
 window_height = 1120
 
+[[filter_presets]]
+name = "Documents"
+extensions = [".docx", ".xlsx", ".pdf", ".txt", ".md"]
+
+[[filter_presets]]
+name = "Images"
+extensions = [".png", ".jpg", ".svg"]
+
+[[filter_presets]]
+name = "Code"
+extensions = [".cs", ".js", ".json", ".xml", ".md"]
+
+[[filter_presets]]
+name = "Archives"
+extensions = [".zip", ".7z", ".tar"]
+
+[[filter_presets]]
+name = "Exclude temp/build"
+exclude = ["*.tmp", ".git/**", "bin/**", "obj/**", "node_modules/**"]
+
 [[pairs]]
 name = "Main Backup"
 enabled = true
@@ -198,6 +218,8 @@ include_subdirectories = true
 - `extensions`, `files`, `include`는 OR 조건으로 포함 대상을 정하고, `exclude`는 항상 우선 적용됩니다.
 - 필터 밖 파일은 `Copy changes`에서도 복사하지 않고, `Mirror source`에서도 삭제하지 않습니다.
 - `include_subdirectories = false`이면 소스 루트 직속 파일만 검사합니다.
+- `[[filter_presets]]` 항목을 수정하면 `Edit Filter...` 팝업의 프리셋 버튼 이름과 자동 입력 값을 바꿀 수 있습니다.
+- 프리셋 버튼은 여러 개를 눌러 함께 사용할 수 있고, 이미 입력된 값은 중복 추가하지 않습니다.
 - 기존 `config.toml`에 `mode`가 없으면 자동으로 `copy`로 처리합니다.
 - 소스와 타겟 경로가 모두 비어 있는 동기화 쌍은 저장하지 않고, 다음 실행 시 표시하지 않습니다.
 - 타겟 디렉터리가 없으면 자동으로 생성합니다.

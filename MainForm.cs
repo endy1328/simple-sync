@@ -48,6 +48,7 @@ public sealed class MainForm : Form
     private readonly List<ActivityEntry> _activityEntries = [];
     private readonly string _appVersion = GetAppVersion();
     private readonly bool _isDebugBuild = IsDebugBuild();
+    private List<FilterPreset> _filterPresets = FilterPreset.CreateDefaults();
     private AppSkin _currentSkin = AppSkins.Get(null);
     private bool _isLoadingConfig;
 
@@ -675,6 +676,7 @@ public sealed class MainForm : Form
         try
         {
             var config = _configService.Load();
+            _filterPresets = config.FilterPresets.Count == 0 ? FilterPreset.CreateDefaults() : config.FilterPresets;
             _intervalInput.Value = Math.Clamp(config.IntervalSeconds, 1, 86_400);
             Size = new Size(
                 Math.Max(MinimumSize.Width, config.WindowWidth),
@@ -716,6 +718,7 @@ public sealed class MainForm : Form
             Skin = _currentSkin.Key,
             WindowWidth = WindowState == FormWindowState.Normal ? Width : RestoreBounds.Width,
             WindowHeight = WindowState == FormWindowState.Normal ? Height : RestoreBounds.Height,
+            FilterPresets = _filterPresets,
             Pairs = _pairs.Select(NormalizePair).Where(HasAnyPath).ToList()
         });
     }
@@ -931,7 +934,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        using var dialog = new FilterDialog(pair);
+        using var dialog = new FilterDialog(pair, _filterPresets);
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
             return;

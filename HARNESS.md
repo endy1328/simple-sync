@@ -56,6 +56,7 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Add at least two enabled pairs and confirm both are saved.
 - Click `Add Pair` and confirm the new pair starts unchecked in the `On` column.
 - Configure a filter with `Edit Filter...` and confirm the `Filter` summary column and tooltip show the rules.
+- Click multiple filter preset buttons and confirm they stay highlighted, append values in order, and do not duplicate existing values.
 - Click `Now` and confirm changed files copy from source to target.
 - Disable all pairs, click `Sync Now`, and confirm Activity shows `대상이 없습니다.` after the start message.
 - Confirm the `Progress` column updates while sync is running, the selected pair's compact status appears in the Activity header, and the current file/path appears in the `Progress` tooltip.
@@ -70,6 +71,7 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Change the interval and confirm the value is saved to `config.toml`.
 - Change a pair mode and confirm `mode = "copy"` or `mode = "mirror"` is saved to `config.toml`.
 - Change filter rules and confirm `include`, `exclude`, `extensions`, `files`, and `include_subdirectories` are saved to `config.toml`.
+- Change a `[[filter_presets]]` entry in `config.toml` and confirm the filter dialog uses the updated preset button/value.
 
 ## Config Location
 

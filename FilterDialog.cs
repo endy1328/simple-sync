@@ -8,24 +8,41 @@ public sealed class FilterDialog : Form
     private readonly TextBox _excludeInput = new();
     private readonly CheckBox _includeSubdirectoriesCheck = new();
     private readonly ToolTip _toolTip = new();
+    private readonly List<FilterPreset> _presets;
+    private readonly List<FilterPreset> _selectedPresets = [];
+    private readonly List<Button> _presetButtons = [];
 
     public FilterDialog(SyncPair pair)
+        : this(pair, FilterPreset.CreateDefaults())
+    {
+    }
+
+    public FilterDialog(SyncPair pair, IEnumerable<FilterPreset> presets)
     {
         Text = $"Filter for \"{(string.IsNullOrWhiteSpace(pair.Name) ? "Pair" : pair.Name.Trim())}\"";
         Font = new Font("Segoe UI", 9F);
         AutoScaleMode = AutoScaleMode.Dpi;
-        MinimumSize = new Size(860, 680);
-        Size = new Size(940, 760);
+        MinimumSize = new Size(980, 760);
+        Size = new Size(1080, 820);
+        ClientSize = new Size(1040, 780);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.Sizable;
         MaximizeBox = false;
         MinimizeBox = false;
+        Shown += (_, _) =>
+        {
+            if (ClientSize.Width < 1040 || ClientSize.Height < 780)
+            {
+                ClientSize = new Size(Math.Max(ClientSize.Width, 1040), Math.Max(ClientSize.Height, 780));
+            }
+        };
 
         IncludePatterns = [.. pair.IncludePatterns];
         ExcludePatterns = [.. pair.ExcludePatterns];
         Extensions = [.. pair.Extensions];
         Files = [.. pair.Files];
         IncludeSubdirectories = pair.IncludeSubdirectories;
+        _presets = NormalizePresets(presets);
 
         BuildLayout();
         LoadValues();
@@ -46,8 +63,8 @@ public sealed class FilterDialog : Form
             RowCount = 8,
             Padding = new Padding(16)
         };
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 82));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 58));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 112));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 25));
@@ -58,7 +75,7 @@ public sealed class FilterDialog : Form
 
         var intro = new Label
         {
-            Text = "Filter rules are applied per sync pair. Excluded files are not copied or deleted. Preset buttons add recommended values to the fields below.",
+            Text = "Filter rules are applied per sync pair. Excluded files are not copied or deleted.\r\nPreset buttons stay active when clicked and append their configured values to the fields below.",
             AutoSize = false,
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 0, 0, 10)
@@ -76,7 +93,7 @@ public sealed class FilterDialog : Form
         presetPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         presetPanel.Controls.Add(new Label
         {
-            Text = "Quick presets: click a button to append suggested extensions or exclude patterns.",
+            Text = "Quick presets: click one or more buttons to append suggested extensions or exclude patterns.",
             AutoSize = true,
             ForeColor = SystemColors.GrayText,
             Margin = new Padding(0, 0, 0, 6)
@@ -88,11 +105,10 @@ public sealed class FilterDialog : Form
             WrapContents = true,
             Margin = Padding.Empty
         };
-        AddPresetButton(presets, "Documents", [".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".pdf", ".txt", ".md"], [], "Adds common document extensions to Extensions.");
-        AddPresetButton(presets, "Images", [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"], [], "Adds common image extensions to Extensions.");
-        AddPresetButton(presets, "Code", [".cs", ".js", ".ts", ".py", ".java", ".xml", ".json", ".yml", ".md"], [], "Adds common source-code extensions to Extensions.");
-        AddPresetButton(presets, "Archives", [".zip", ".7z", ".rar", ".tar", ".gz"], [], "Adds common archive extensions to Extensions.");
-        AddPresetButton(presets, "Exclude temp/build", [], ["*.tmp", "~*", ".git/**", "bin/**", "obj/**", "node_modules/**", ".vs/**"], "Adds common temporary/build paths to Exclude patterns.");
+        foreach (var preset in _presets)
+        {
+            AddPresetButton(presets, preset);
+        }
         presetPanel.Controls.Add(presets, 0, 1);
         root.Controls.Add(presetPanel, 0, 1);
 
@@ -149,21 +165,22 @@ public sealed class FilterDialog : Form
         return panel;
     }
 
-    private void AddPresetButton(FlowLayoutPanel parent, string text, string[] extensions, string[] excludes, string tooltip)
+    private void AddPresetButton(FlowLayoutPanel parent, FilterPreset preset)
     {
-        var button = new Button { Text = text, AutoSize = true, Margin = new Padding(0, 0, 6, 6), Padding = new Padding(8, 2, 8, 2) };
-        _toolTip.SetToolTip(button, tooltip);
+        var button = new Button { Text = preset.Name, AutoSize = true, Margin = new Padding(0, 0, 6, 6), Padding = new Padding(8, 2, 8, 2) };
+        _presetButtons.Add(button);
+        _toolTip.SetToolTip(button, preset.Tooltip);
         button.Click += (_, _) =>
         {
-            if (extensions.Length > 0)
+            if (!_selectedPresets.Contains(preset))
             {
-                _extensionsInput.Text = MergeLines(_extensionsInput.Text, extensions);
+                _selectedPresets.Add(preset);
             }
 
-            if (excludes.Length > 0)
-            {
-                _excludeInput.Text = MergeLines(_excludeInput.Text, excludes);
-            }
+            button.UseVisualStyleBackColor = false;
+            button.BackColor = SystemColors.Highlight;
+            button.ForeColor = SystemColors.HighlightText;
+            ApplySelectedPresets();
         };
         parent.Controls.Add(button);
     }
@@ -193,28 +210,38 @@ public sealed class FilterDialog : Form
         _includeInput.Clear();
         _excludeInput.Clear();
         _includeSubdirectoriesCheck.Checked = true;
+        _selectedPresets.Clear();
+        foreach (var button in _presetButtons)
+        {
+            button.UseVisualStyleBackColor = true;
+            button.ForeColor = SystemColors.ControlText;
+        }
     }
 
     private static List<string> ParseLines(string text)
     {
-        return text
-            .Split(['\r', '\n', ';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        return FilterPreset.ParseValues(text);
     }
 
-    private static string MergeLines(string current, IEnumerable<string> additions)
+    private void ApplySelectedPresets()
     {
-        var merged = ParseLines(current);
-        foreach (var addition in additions)
-        {
-            if (!merged.Contains(addition, StringComparer.OrdinalIgnoreCase))
-            {
-                merged.Add(addition);
-            }
-        }
+        _extensionsInput.Text = FormatLines(FilterPreset.MergeValues(_extensionsInput.Text, _selectedPresets, preset => preset.Extensions));
+        _filesInput.Text = FormatLines(FilterPreset.MergeValues(_filesInput.Text, _selectedPresets, preset => preset.Files));
+        _includeInput.Text = FormatLines(FilterPreset.MergeValues(_includeInput.Text, _selectedPresets, preset => preset.IncludePatterns));
+        _excludeInput.Text = FormatLines(FilterPreset.MergeValues(_excludeInput.Text, _selectedPresets, preset => preset.ExcludePatterns));
+    }
 
-        return string.Join(Environment.NewLine, merged);
+    private static string FormatLines(IEnumerable<string> values)
+    {
+        return string.Join(Environment.NewLine, values);
+    }
+
+    private static List<FilterPreset> NormalizePresets(IEnumerable<FilterPreset> presets)
+    {
+        var normalized = presets
+            .Where(preset => !string.IsNullOrWhiteSpace(preset.Name))
+            .ToList();
+
+        return normalized.Count == 0 ? FilterPreset.CreateDefaults() : normalized;
     }
 }

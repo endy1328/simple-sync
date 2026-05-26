@@ -3,6 +3,26 @@ skin = "syncback_blue"
 window_width = 1720
 window_height = 1120
 
+[[filter_presets]]
+name = "Documents"
+extensions = [".docx", ".xlsx", ".pdf", ".txt", ".md"]
+
+[[filter_presets]]
+name = "Images"
+extensions = [".png", ".jpg", ".svg"]
+
+[[filter_presets]]
+name = "Code"
+extensions = [".cs", ".js", ".json", ".xml", ".md"]
+
+[[filter_presets]]
+name = "Archives"
+extensions = [".zip", ".7z", ".tar"]
+
+[[filter_presets]]
+name = "Exclude temp/build"
+exclude = ["*.tmp", ".git/**", "bin/**", "obj/**", "node_modules/**"]
+
 [[pairs]]
 name = "Main Backup"
 enabled = true

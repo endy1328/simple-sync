@@ -6,7 +6,74 @@ public sealed class AppConfig
     public string Skin { get; set; } = "syncback_blue";
     public int WindowWidth { get; set; } = 1720;
     public int WindowHeight { get; set; } = 1120;
+    public List<FilterPreset> FilterPresets { get; set; } = FilterPreset.CreateDefaults();
     public List<SyncPair> Pairs { get; set; } = [];
+}
+
+public sealed class FilterPreset
+{
+    public string Name { get; set; } = string.Empty;
+    public List<string> Extensions { get; set; } = [];
+    public List<string> Files { get; set; } = [];
+    public List<string> IncludePatterns { get; set; } = [];
+    public List<string> ExcludePatterns { get; set; } = [];
+
+    public string Tooltip
+    {
+        get
+        {
+            var parts = new List<string>();
+            AddPart(parts, "Extensions", Extensions);
+            AddPart(parts, "Files", Files);
+            AddPart(parts, "Include", IncludePatterns);
+            AddPart(parts, "Exclude", ExcludePatterns);
+            return parts.Count == 0 ? "No values configured." : string.Join(Environment.NewLine, parts);
+        }
+    }
+
+    public static List<FilterPreset> CreateDefaults()
+    {
+        return
+        [
+            new() { Name = "Documents", Extensions = [".docx", ".xlsx", ".pdf", ".txt", ".md"] },
+            new() { Name = "Images", Extensions = [".png", ".jpg", ".svg"] },
+            new() { Name = "Code", Extensions = [".cs", ".js", ".json", ".xml", ".md"] },
+            new() { Name = "Archives", Extensions = [".zip", ".7z", ".tar"] },
+            new() { Name = "Exclude temp/build", ExcludePatterns = ["*.tmp", ".git/**", "bin/**", "obj/**", "node_modules/**"] }
+        ];
+    }
+
+    public static List<string> MergeValues(string current, IEnumerable<FilterPreset> presets, Func<FilterPreset, IEnumerable<string>> selector)
+    {
+        var merged = ParseValues(current);
+        foreach (var value in presets.SelectMany(selector))
+        {
+            if (!merged.Contains(value, StringComparer.OrdinalIgnoreCase))
+            {
+                merged.Add(value);
+            }
+        }
+
+        return merged;
+    }
+
+    public static List<string> ParseValues(string text)
+    {
+        return text
+            .Split(['\r', '\n', ';', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static void AddPart(ICollection<string> parts, string label, IEnumerable<string> values)
+    {
+        var list = values.Where(item => !string.IsNullOrWhiteSpace(item)).ToList();
+        if (list.Count > 0)
+        {
+            parts.Add($"{label}: {string.Join(", ", list)}");
+        }
+    }
 }
 
 public sealed class SyncPair
