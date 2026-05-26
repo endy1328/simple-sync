@@ -13,6 +13,7 @@ await Run("mirror top folder filter preserves subdirectory target files", Mirror
 await Run("config round-trips sync filters", ConfigRoundTripsSyncFilters);
 await Run("config round-trips filter presets", ConfigRoundTripsFilterPresets);
 await Run("filter presets merge selected values without duplicates", FilterPresetsMergeSelectedValuesWithoutDuplicates);
+await Run("filter summary shows only all files or filtered", FilterSummaryShowsOnlyAllFilesOrFiltered);
 await Run("debug build uses separate single instance mutex", DebugBuildUsesSeparateSingleInstanceMutex);
 await Run("debug build labels window title and status", DebugBuildLabelsWindowTitleAndStatus);
 await Run("new sync pair starts disabled", NewSyncPairStartsDisabled);
@@ -320,6 +321,26 @@ static Task FilterPresetsMergeSelectedValuesWithoutDuplicates()
     Assert(
         merged.SequenceEqual([".docx", ".xlsx", ".pdf", ".txt", ".md", ".png", ".jpg", ".svg", ".cs", ".js", ".json", ".xml"]),
         "selected preset values should append in click order and avoid duplicates");
+
+    return Task.CompletedTask;
+}
+
+static Task FilterSummaryShowsOnlyAllFilesOrFiltered()
+{
+    Assert(
+        SyncFilter.FromPair(new SyncPair()).Summary == "All files",
+        "empty filter should summarize as all files");
+
+    Assert(
+        SyncFilter.FromPair(new SyncPair { Extensions = [".docx", ".xlsx", ".pdf"] }).Summary == "Filtered",
+        "extension filter should summarize as filtered");
+
+    Assert(
+        SyncFilter.FromPair(new SyncPair { IncludeSubdirectories = false }).Summary == "Filtered",
+        "top-folder-only filter should summarize as filtered");
+
+    var detail = SyncFilter.FromPair(new SyncPair { Extensions = [".docx", ".xlsx"] }).Detail;
+    Assert(detail.Contains(".docx", StringComparison.OrdinalIgnoreCase), "filter detail should keep full values for tooltip");
 
     return Task.CompletedTask;
 }
