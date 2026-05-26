@@ -396,12 +396,11 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 2,
             Padding = new Padding(12),
             Margin = new Padding(0, 0, 0, 10)
         };
         _surfaces.Add(section);
-        section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -426,11 +425,12 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = 3,
             Padding = new Padding(12),
             Margin = new Padding(0, 0, 0, 10)
         };
         _surfaces.Add(section);
+        section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
