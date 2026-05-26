@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Reflection;
 using System.Text;
 
 namespace SimpleSync;
@@ -42,6 +43,7 @@ public sealed class MainForm : Form
     private readonly List<ComboBox> _comboBoxes = [];
     private readonly Dictionary<SyncPair, SyncProgress> _progressByPair = [];
     private readonly List<ActivityEntry> _activityEntries = [];
+    private readonly string _appVersion = GetAppVersion();
     private AppSkin _currentSkin = AppSkins.Get(null);
     private bool _isLoadingConfig;
 
@@ -320,7 +322,7 @@ public sealed class MainForm : Form
         _statusLabel.AutoSize = true;
         _mutedLabels.Add(_statusLabel);
         _statusLabel.Padding = new Padding(2, 8, 0, 0);
-        _statusLabel.Text = "Ready";
+        _statusLabel.Text = FormatStatus("Ready");
         root.Controls.Add(_statusLabel, 0, 3);
     }
 
@@ -741,11 +743,11 @@ public sealed class MainForm : Form
         if (_autoSyncCheck.Checked)
         {
             _timer.Start();
-            _statusLabel.Text = $"Auto sync every {_intervalInput.Value} sec";
+            _statusLabel.Text = FormatStatus($"Auto sync every {_intervalInput.Value} sec");
         }
         else
         {
-            _statusLabel.Text = "Auto sync paused";
+            _statusLabel.Text = FormatStatus("Auto sync paused");
         }
     }
 
@@ -861,7 +863,26 @@ public sealed class MainForm : Form
     private void SetBusy(bool busy)
     {
         _nowButton.Enabled = !busy;
-        _statusLabel.Text = busy ? "Syncing..." : (_autoSyncCheck.Checked ? $"Auto sync every {_intervalInput.Value} sec" : "Auto sync paused");
+        _statusLabel.Text = FormatStatus(busy ? "Syncing..." : (_autoSyncCheck.Checked ? $"Auto sync every {_intervalInput.Value} sec" : "Auto sync paused"));
+    }
+
+    private string FormatStatus(string status)
+    {
+        return $"simple sync {_appVersion} | {status}";
+    }
+
+    private static string GetAppVersion()
+    {
+        var informationalVersion = typeof(MainForm).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return informationalVersion;
+        }
+
+        return typeof(MainForm).Assembly.GetName().Version?.ToString(3) ?? "1.1.0";
     }
 
     private void GridCellPainting(object? sender, DataGridViewCellPaintingEventArgs e)

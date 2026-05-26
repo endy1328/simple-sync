@@ -35,6 +35,8 @@ The app opens a Windows Forms UI titled `simple sync`.
 
 ## Publish
 
+Current release version lives in `VERSION`. `scripts\publish-installer.ps1` reads that value when generating the installer.
+
 ```powershell
 dotnet publish -c Release -r win-x64 --self-contained false
 ```

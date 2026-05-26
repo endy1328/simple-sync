@@ -17,6 +17,7 @@ Build and maintain a simple Windows application named `simple sync` that synchro
 - Keep large-file copies safe by copying to a temporary file first and replacing the target only after copy success.
 - Keep runtime sync progress separate from persisted `SyncPair` configuration.
 - Keep settings in `config.toml` beside the executable.
+- Keep release version in `VERSION`, update `CHANGELOG.md`, and keep project/installer versions aligned.
 - Keep README and harness documents current after implementation changes.
 - Avoid overwriting user changes that are unrelated to the current task.
 - Use focused changes and verify with `dotnet build` and the console sync tests before handoff.

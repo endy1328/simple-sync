@@ -35,6 +35,8 @@ dotnet run
 
 ## 배포
 
+현재 배포 버전은 `VERSION` 파일에 있습니다. `scripts\publish-installer.ps1`는 설치 파일을 만들 때 이 값을 읽습니다.
+
 ```powershell
 dotnet publish -c Release -r win-x64 --self-contained false
 ```
