@@ -15,7 +15,8 @@
 - 동기화 쌍별로 `Copy changes` 또는 `Mirror source` 모드를 선택할 수 있습니다.
 - `A -> B`, `C -> D`처럼 2개 이상의 동기화 쌍을 설정할 수 있습니다.
 - 각 동기화 쌍에 이름을 붙이고 Activity 로그에서 이름으로 구분할 수 있습니다.
-- 각 동기화 쌍의 진행률은 `Sync pairs` 목록에서 확인하고, 선택한 쌍의 현재 작업은 Activity 영역 상단에서 확인할 수 있습니다.
+- 각 동기화 쌍의 진행률은 `Sync pairs` 목록에서 확인하고, 선택한 쌍의 상태는 Activity 헤더에서 확인할 수 있습니다.
+- 현재 처리 중인 파일이나 경로는 `Progress` 셀 툴팁으로 확인할 수 있습니다.
 - Activity 로그는 `All`, `Selected`, `Errors` 기준으로 필터링할 수 있습니다.
 - `Sync Now` 버튼을 누르면 즉시 동기화를 실행합니다.
 - `Add Pair`, `Remove`, `Choose Source`, `Choose Target` 버튼으로 동기화 쌍을 관리합니다.

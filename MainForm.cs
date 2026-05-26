@@ -239,6 +239,7 @@ public sealed class MainForm : Form
             }
         };
         _grid.CellPainting += GridCellPainting;
+        _grid.CellToolTipTextNeeded += GridCellToolTipTextNeeded;
         _grid.DataError += (_, e) =>
         {
             e.ThrowException = false;
@@ -425,12 +426,11 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 2,
             Padding = new Padding(12),
             Margin = new Padding(0, 0, 0, 10)
         };
         _surfaces.Add(section);
-        section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
@@ -438,10 +438,11 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1,
             Margin = new Padding(0, 0, 0, 8)
         };
+        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
@@ -455,6 +456,16 @@ public sealed class MainForm : Form
         _titleLabels.Add(label);
         header.Controls.Add(label, 0, 0);
 
+        _currentStatusLabel.Text = "No sync pair selected";
+        _currentStatusLabel.Dock = DockStyle.Fill;
+        _currentStatusLabel.AutoSize = false;
+        _currentStatusLabel.Height = 24;
+        _currentStatusLabel.TextAlign = ContentAlignment.MiddleLeft;
+        _currentStatusLabel.AutoEllipsis = true;
+        _currentStatusLabel.Margin = new Padding(12, 0, 8, 0);
+        _mutedLabels.Add(_currentStatusLabel);
+        header.Controls.Add(_currentStatusLabel, 1, 0);
+
         _activityFilterSelect.DropDownStyle = ComboBoxStyle.DropDownList;
         _activityFilterSelect.Width = 120;
         _activityFilterSelect.Margin = new Padding(8, 0, 0, 0);
@@ -462,19 +473,10 @@ public sealed class MainForm : Form
         _activityFilterSelect.SelectedIndex = 0;
         _activityFilterSelect.SelectedIndexChanged += (_, _) => RenderActivityLog();
         _comboBoxes.Add(_activityFilterSelect);
-        header.Controls.Add(_activityFilterSelect, 1, 0);
-
-        _currentStatusLabel.Text = "No sync pair selected";
-        _currentStatusLabel.Dock = DockStyle.Fill;
-        _currentStatusLabel.AutoSize = false;
-        _currentStatusLabel.Height = 24;
-        _currentStatusLabel.AutoEllipsis = true;
-        _currentStatusLabel.Margin = new Padding(0, 0, 0, 8);
-        _mutedLabels.Add(_currentStatusLabel);
+        header.Controls.Add(_activityFilterSelect, 2, 0);
 
         section.Controls.Add(header, 0, 0);
-        section.Controls.Add(_currentStatusLabel, 0, 1);
-        section.Controls.Add(_log, 0, 2);
+        section.Controls.Add(_log, 0, 1);
         return section;
     }
 
@@ -948,6 +950,22 @@ public sealed class MainForm : Form
         e.Handled = true;
     }
 
+    private void GridCellToolTipTextNeeded(object? sender, DataGridViewCellToolTipTextNeededEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex < 0 || _grid.Columns[e.ColumnIndex].Name != "Progress")
+        {
+            return;
+        }
+
+        if (_grid.Rows[e.RowIndex].DataBoundItem is not SyncPair pair ||
+            !_progressByPair.TryGetValue(pair, out var progress))
+        {
+            return;
+        }
+
+        e.ToolTipText = FormatCurrentDetail(progress);
+    }
+
     private double GetProgressPercent(SyncPair pair)
     {
         if (!_progressByPair.TryGetValue(pair, out var progress))
@@ -1031,26 +1049,26 @@ public sealed class MainForm : Form
         var pairName = PairLogName(pair);
         if (progress is null)
         {
-            return $"{pairName}: idle";
+            return $"Selected: {pairName} - Idle";
         }
 
-        var detail = progress.Message ?? progress.CurrentPath;
         var status = progress.Phase switch
         {
             SyncPhase.Pending => "Pending",
-            SyncPhase.Preparing => "Scanning files",
-            SyncPhase.Copying when !string.IsNullOrWhiteSpace(detail) => $"Copying {detail}",
+            SyncPhase.Preparing => "Scanning",
             SyncPhase.Copying => "Copying",
-            SyncPhase.Deleting when !string.IsNullOrWhiteSpace(detail) => $"Deleting {detail}",
             SyncPhase.Deleting => "Deleting",
             SyncPhase.Completed => "Done",
-            SyncPhase.Failed when !string.IsNullOrWhiteSpace(detail) => $"Failed: {detail}",
             SyncPhase.Failed => "Failed",
-            _ when !string.IsNullOrWhiteSpace(detail) => detail,
             _ => "Working"
         };
 
-        return $"{pairName}: {status}";
+        return $"Selected: {pairName} - {status}";
+    }
+
+    public static string FormatCurrentDetail(SyncProgress progress)
+    {
+        return progress.Message ?? progress.CurrentPath ?? string.Empty;
     }
 
     private void UpdateCurrentStatusLabel()

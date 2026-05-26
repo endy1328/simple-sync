@@ -117,24 +117,28 @@ static Task FormatsSelectedPairCurrentStatus()
     var pair = new SyncPair { Name = "Docs", Source = @"C:\source", Target = @"D:\target" };
 
     Assert(
-        SimpleSync.MainForm.FormatCurrentStatus(pair, null) == "Docs: idle",
+        SimpleSync.MainForm.FormatCurrentStatus(pair, null) == "Selected: Docs - Idle",
         "missing progress should show idle status");
 
     Assert(
-        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Preparing }) == "Docs: Scanning files",
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Preparing }) == "Selected: Docs - Scanning",
         "preparing should show scanning status");
 
     Assert(
-        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Copying, CurrentPath = "a.txt" }) == "Docs: Copying a.txt",
-        "copying should include current relative path");
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Copying, CurrentPath = "a.txt" }) == "Selected: Docs - Copying",
+        "copying header status should stay compact");
 
     Assert(
-        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Deleting, CurrentPath = "old.txt" }) == "Docs: Deleting old.txt",
-        "deleting should include current relative path");
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Deleting, CurrentPath = "old.txt" }) == "Selected: Docs - Deleting",
+        "deleting header status should stay compact");
 
     Assert(
-        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Completed }) == "Docs: Done",
+        SimpleSync.MainForm.FormatCurrentStatus(pair, new SyncProgress { Pair = pair, Phase = SyncPhase.Completed }) == "Selected: Docs - Done",
         "completed should show done status");
+
+    Assert(
+        SimpleSync.MainForm.FormatCurrentDetail(new SyncProgress { Pair = pair, Phase = SyncPhase.Copying, CurrentPath = "a.txt" }) == "a.txt",
+        "progress tooltip detail should include current relative path");
 
     return Task.CompletedTask;
 }
