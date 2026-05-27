@@ -154,6 +154,42 @@ dist\simple-sync-setup.exe
 설치 프로그램은 `.NET Windows Desktop Runtime`이 없는 PC에서도 실행되도록 self-contained publish 결과를 포함합니다.
 기존 `dist\simple-sync-setup.exe`가 있어도 스크립트가 최신 publish 결과로 덮어써서 다시 만듭니다.
 
+## GitHub Release 생성
+
+설치 파일을 GitHub Release에 업로드하려면 먼저 설치 프로그램을 생성합니다.
+
+```powershell
+.\scripts\publish-installer.ps1
+```
+
+Release 생성 전 확인:
+
+```powershell
+.\scripts\create-github-release.ps1 -DryRun
+```
+
+실제 Release 생성:
+
+```powershell
+.\scripts\create-github-release.ps1
+```
+
+기본값은 `VERSION` 파일의 버전을 읽어 `v버전` 태그를 만들고, `dist\simple-sync-setup.exe`와 `release-notes-버전.md`를 사용합니다.
+예를 들어 `VERSION`이 `1.2.1`이면 `v1.2.1` 태그와 `release-notes-1.2.1.md`를 사용합니다.
+
+다른 저장소, 브랜치, 파일을 지정해야 하는 경우:
+
+```powershell
+.\scripts\create-github-release.ps1 `
+  -Repository "endy1328/simple-sync" `
+  -Target "main" `
+  -Version "1.2.1" `
+  -InstallerPath ".\dist\simple-sync-setup.exe" `
+  -NotesPath ".\release-notes-1.2.1.md"
+```
+
+스크립트는 설치 파일의 SHA256도 출력합니다. 이 값은 winget manifest의 `InstallerSha256`에 사용합니다.
+
 ## 설정 파일
 
 `config.toml`은 `simple sync.exe`와 같은 폴더에 저장됩니다. 앱은 시작 시 이 파일을 읽고, 화면에서 설정이 변경되거나 앱이 종료될 때 최신 값을 저장합니다.
@@ -260,6 +296,8 @@ Git에 포함:
 - `scripts/simple-sync.ps1`
 - `scripts/simple-sync-robocopy.cmd`
 - `scripts/publish-installer.ps1`
+- `scripts/create-github-release.ps1`
+- `release-notes-*.md`
 - `installer/simple-sync.iss`
 - `tests/SimpleSync.Tests`
 - 아이콘 파일과 아이콘 생성 스크립트
