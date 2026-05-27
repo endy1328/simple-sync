@@ -20,6 +20,8 @@ Build and maintain a simple Windows application named `simple sync` that synchro
 - Keep settings in `config.toml` beside the executable.
 - Keep Debug builds on a separate single-instance mutex from Release so installed builds and `dotnet run` can be compared side by side during development.
 - Keep release version in `VERSION`, update `CHANGELOG.md`, and keep project/installer versions aligned.
+- Keep GitHub release notes and release helper workflow aligned with the current version.
+- Keep winget package manifests outside this repository, in a separate `winget-pkgs` fork/worktree.
 - Keep README and harness documents current after implementation changes.
 - Avoid overwriting user changes that are unrelated to the current task.
 - Use focused changes and verify with `dotnet build` and the console sync tests before handoff.
@@ -41,3 +43,10 @@ Operational and harness documents are maintained in English and Korean pairs:
 - `HARNESS.md` and `HARNESS_kor.md`
 
 Update both files together whenever operational behavior, verification, or project workflow changes.
+
+## Release Workflow
+
+- Build the installer with `scripts\publish-installer.ps1`.
+- Create GitHub releases with `scripts\create-github-release.ps1` after confirming `-DryRun`.
+- Release notes live at the repository root as `release-notes-<version>.md`.
+- winget manifests are not stored in this repository. Prepare them in a separate checkout such as `C:\workspace\winget-pkgs`.
