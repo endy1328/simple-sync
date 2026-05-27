@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace SimpleSync;
@@ -11,6 +12,7 @@ public sealed class MainForm : Form
     private sealed record ActivityEntry(DateTime Time, string Message, SyncPair? Pair, string PairName, bool IsError);
 
     private const int MaxActivityEntries = 5_000;
+    private const int WmSetRedraw = 0x000B;
     public const string NoSyncTargetsMessage = "대상이 없습니다.";
 
     private readonly BindingList<SyncPair> _pairs = [];
@@ -57,7 +59,11 @@ public sealed class MainForm : Form
     private List<FilterPreset> _filterPresets = FilterPreset.CreateDefaults();
     private AppSkin _currentSkin = AppSkins.Get(null);
     private bool _isLoadingConfig;
+    private bool _isApplyingLanguage;
     private bool _isBusy;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     public MainForm()
     {
@@ -206,7 +212,7 @@ public sealed class MainForm : Form
         }
         _languageSelect.SelectedIndexChanged += (_, _) =>
         {
-            if (!_isLoadingConfig && _languageSelect.SelectedItem is LanguageOption language)
+            if (!_isLoadingConfig && !_isApplyingLanguage && _languageSelect.SelectedItem is LanguageOption language)
             {
                 _localization.SetLanguage(language.Code);
                 ApplyLanguage();
@@ -525,7 +531,13 @@ public sealed class MainForm : Form
         _activityFilterSelect.Margin = new Padding(8, 0, 0, 0);
         _activityFilterSelect.DisplayMember = nameof(ActivityFilterOption.Label);
         _activityFilterSelect.ValueMember = nameof(ActivityFilterOption.Key);
-        _activityFilterSelect.SelectedIndexChanged += (_, _) => RenderActivityLog();
+        _activityFilterSelect.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_isApplyingLanguage)
+            {
+                RenderActivityLog();
+            }
+        };
         _comboBoxes.Add(_activityFilterSelect);
         header.Controls.Add(_activityFilterSelect, 2, 0);
 
@@ -822,38 +834,68 @@ public sealed class MainForm : Form
 
     private void ApplyLanguage()
     {
-        Text = FormatWindowTitle(_isDebugBuild, _localization);
-        _headerTitleLabel.Text = _localization.Text("app.title");
-        _headerSubtitleLabel.Text = _localization.Text("app.subtitle");
-        _everyLabel.Text = _localization.Text("toolbar.every");
-        _secondsLabel.Text = _localization.Text("toolbar.seconds");
-        _autoSyncCheck.Text = _localization.Text("toolbar.auto");
-        _nowButton.Text = _localization.Text("toolbar.sync_now");
-        _addButton.Text = _localization.Text("toolbar.add_pair");
-        _removeButton.Text = _localization.Text("toolbar.remove");
-        _browseSourceButton.Text = _localization.Text("toolbar.choose_source");
-        _browseTargetButton.Text = _localization.Text("toolbar.choose_target");
-        _editFilterButton.Text = _localization.Text("toolbar.edit_filter");
-        _skinLabel.Text = _localization.Text("toolbar.skin");
-        _languageLabel.Text = _localization.Text("toolbar.language");
-        _syncPairsTitleLabel.Text = _localization.Text("section.sync_pairs");
-        _activityTitleLabel.Text = _localization.Text("section.activity");
+        _isApplyingLanguage = true;
+        SetRedraw(this, enabled: false);
+        SetRedraw(_grid, enabled: false);
+        SuspendLayout();
+        _grid.SuspendLayout();
 
-        SetColumnHeader(nameof(SyncPair.Enabled), _localization.Text("grid.on"));
-        SetColumnHeader(nameof(SyncPair.Name), _localization.Text("grid.name"));
-        SetColumnHeader(nameof(SyncPair.Mode), _localization.Text("grid.mode"));
-        SetColumnHeader("Filter", _localization.Text("grid.filter"));
-        SetColumnHeader("Progress", _localization.Text("grid.progress"));
-        SetColumnHeader(nameof(SyncPair.Source), _localization.Text("grid.source"));
-        SetColumnHeader("Direction", _localization.Text("grid.flow"));
-        SetColumnHeader(nameof(SyncPair.Target), _localization.Text("grid.target"));
+        try
+        {
+            Text = FormatWindowTitle(_isDebugBuild, _localization);
+            _headerTitleLabel.Text = _localization.Text("app.title");
+            _headerSubtitleLabel.Text = _localization.Text("app.subtitle");
+            _everyLabel.Text = _localization.Text("toolbar.every");
+            _secondsLabel.Text = _localization.Text("toolbar.seconds");
+            _autoSyncCheck.Text = _localization.Text("toolbar.auto");
+            _nowButton.Text = _localization.Text("toolbar.sync_now");
+            _addButton.Text = _localization.Text("toolbar.add_pair");
+            _removeButton.Text = _localization.Text("toolbar.remove");
+            _browseSourceButton.Text = _localization.Text("toolbar.choose_source");
+            _browseTargetButton.Text = _localization.Text("toolbar.choose_target");
+            _editFilterButton.Text = _localization.Text("toolbar.edit_filter");
+            _skinLabel.Text = _localization.Text("toolbar.skin");
+            _languageLabel.Text = _localization.Text("toolbar.language");
+            _syncPairsTitleLabel.Text = _localization.Text("section.sync_pairs");
+            _activityTitleLabel.Text = _localization.Text("section.activity");
 
-        RebuildModeOptions();
-        RebuildActivityFilterOptions();
-        SelectCurrentLanguage();
-        UpdateCurrentStatusLabel();
-        UpdateStatus();
-        _grid.Refresh();
+            SetColumnHeader(nameof(SyncPair.Enabled), _localization.Text("grid.on"));
+            SetColumnHeader(nameof(SyncPair.Name), _localization.Text("grid.name"));
+            SetColumnHeader(nameof(SyncPair.Mode), _localization.Text("grid.mode"));
+            SetColumnHeader("Filter", _localization.Text("grid.filter"));
+            SetColumnHeader("Progress", _localization.Text("grid.progress"));
+            SetColumnHeader(nameof(SyncPair.Source), _localization.Text("grid.source"));
+            SetColumnHeader("Direction", _localization.Text("grid.flow"));
+            SetColumnHeader(nameof(SyncPair.Target), _localization.Text("grid.target"));
+
+            RebuildModeOptions();
+            RebuildActivityFilterOptions();
+            SelectCurrentLanguage();
+            UpdateCurrentStatusLabel();
+            UpdateStatus();
+        }
+        finally
+        {
+            _grid.ResumeLayout(performLayout: false);
+            ResumeLayout(performLayout: true);
+            SetRedraw(_grid, enabled: true);
+            SetRedraw(this, enabled: true);
+            _isApplyingLanguage = false;
+        }
+
+        RenderActivityLog();
+        _grid.Invalidate();
+        Invalidate(invalidateChildren: true);
+    }
+
+    private static void SetRedraw(Control control, bool enabled)
+    {
+        if (!control.IsHandleCreated)
+        {
+            return;
+        }
+
+        SendMessage(control.Handle, WmSetRedraw, enabled ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
     }
 
     private void SetColumnHeader(string nameOrProperty, string text)
