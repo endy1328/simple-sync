@@ -73,6 +73,14 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - Change filter rules and confirm `include`, `exclude`, `extensions`, `files`, and `include_subdirectories` are saved to `config.toml`.
 - Change a `[[filter_presets]]` entry in `config.toml` and confirm the filter dialog uses the updated preset button/value.
 
+## Localization Manual Check
+
+1. Start the app with no `language` key in `config.toml`; confirm Korean is selected.
+2. Switch Language to English; confirm toolbar, grid headers, status text, activity filter, and filter dialog labels update immediately.
+3. Close and reopen the app; confirm English is restored from `config.toml`.
+4. Switch back to Korean; confirm `language = "ko-KR"` is saved.
+5. Run a sync in both languages and confirm file copy behavior is unchanged.
+
 ## Config Location
 
 At runtime, `config.toml` lives beside the executable. In development this is usually:

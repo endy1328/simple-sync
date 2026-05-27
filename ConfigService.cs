@@ -73,6 +73,10 @@ public sealed class ConfigService
                 {
                     config.Skin = Unquote(value);
                 }
+                else if (key.Equals("language", StringComparison.OrdinalIgnoreCase))
+                {
+                    config.Language = LocalizationService.NormalizeLanguage(Unquote(value));
+                }
                 else if (key.Equals("window_width", StringComparison.OrdinalIgnoreCase) &&
                     int.TryParse(value, out var width))
                 {
@@ -169,6 +173,7 @@ public sealed class ConfigService
         var builder = new StringBuilder();
         builder.AppendLine($"interval_seconds = {Math.Clamp(config.IntervalSeconds, 1, 86_400)}");
         builder.AppendLine($"skin = \"{Escape(config.Skin)}\"");
+        builder.AppendLine($"language = \"{Escape(LocalizationService.NormalizeLanguage(config.Language))}\"");
         builder.AppendLine($"window_width = {Math.Clamp(config.WindowWidth, 860, 10_000)}");
         builder.AppendLine($"window_height = {Math.Clamp(config.WindowHeight, 560, 10_000)}");
         builder.AppendLine();

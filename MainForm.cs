@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace SimpleSync;
@@ -7,19 +8,16 @@ namespace SimpleSync;
 public sealed class MainForm : Form
 {
     private sealed record ModeOption(string Value, string Label);
+    private sealed record ActivityFilterOption(string Key, string Label);
     private sealed record ActivityEntry(DateTime Time, string Message, SyncPair? Pair, string PairName, bool IsError);
 
     private const int MaxActivityEntries = 5_000;
+    private const int WmSetRedraw = 0x000B;
     public const string NoSyncTargetsMessage = "대상이 없습니다.";
-
-    private static readonly ModeOption[] ModeOptions =
-    [
-        new(SyncModes.Copy, "Copy changes"),
-        new(SyncModes.Mirror, "Mirror source")
-    ];
 
     private readonly BindingList<SyncPair> _pairs = [];
     private readonly ConfigService _configService;
+    private readonly LocalizationService _localization = new();
     private readonly SyncService _syncService = new();
     private readonly System.Windows.Forms.Timer _timer = new();
     private readonly SemaphoreSlim _syncLock = new(1, 1);
@@ -37,7 +35,16 @@ public sealed class MainForm : Form
     private readonly Button _editFilterButton = new();
     private readonly CheckBox _autoSyncCheck = new();
     private readonly ComboBox _skinSelect = new();
+    private readonly ComboBox _languageSelect = new();
     private readonly Label _statusLabel = new();
+    private readonly Label _headerTitleLabel = new();
+    private readonly Label _headerSubtitleLabel = new();
+    private readonly Label _syncPairsTitleLabel = new();
+    private readonly Label _activityTitleLabel = new();
+    private readonly Label _everyLabel = new();
+    private readonly Label _secondsLabel = new();
+    private readonly Label _skinLabel = new();
+    private readonly Label _languageLabel = new();
     private readonly List<Control> _surfaces = [];
     private readonly List<Label> _titleLabels = [];
     private readonly List<Label> _mutedLabels = [];
@@ -46,15 +53,21 @@ public sealed class MainForm : Form
     private readonly List<ComboBox> _comboBoxes = [];
     private readonly Dictionary<SyncPair, SyncProgress> _progressByPair = [];
     private readonly List<ActivityEntry> _activityEntries = [];
+    private readonly List<ModeOption> _modeOptions = [];
     private readonly string _appVersion = GetAppVersion();
     private readonly bool _isDebugBuild = IsDebugBuild();
     private List<FilterPreset> _filterPresets = FilterPreset.CreateDefaults();
     private AppSkin _currentSkin = AppSkins.Get(null);
     private bool _isLoadingConfig;
+    private bool _isApplyingLanguage;
+    private bool _isBusy;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     public MainForm()
     {
-        Text = FormatWindowTitle(_isDebugBuild);
+        Text = FormatWindowTitle(_isDebugBuild, _localization);
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
         Font = new Font("Segoe UI", 9F);
         MinimumSize = new Size(860, 560);
@@ -121,17 +134,17 @@ public sealed class MainForm : Form
             SaveConfig();
         };
 
-        _autoSyncCheck.Text = "Auto";
+        _autoSyncCheck.Text = _localization.Text("toolbar.auto");
         _autoSyncCheck.Checked = true;
         _autoSyncCheck.AutoSize = true;
         _autoSyncCheck.Margin = new Padding(4, 6, 16, 0);
         _autoSyncCheck.CheckedChanged += (_, _) => ConfigureTimer();
 
-        _nowButton.Text = "Sync Now";
+        _nowButton.Text = _localization.Text("toolbar.sync_now");
         RegisterButton(_nowButton, primary: true);
-        _nowButton.Click += async (_, _) => await RunSyncAsync("수동 실행");
+        _nowButton.Click += async (_, _) => await RunSyncAsync(_localization.Text("activity.manual_reason"));
 
-        _addButton.Text = "Add Pair";
+        _addButton.Text = _localization.Text("toolbar.add_pair");
         RegisterButton(_addButton, primary: false);
         _addButton.Click += (_, _) =>
         {
@@ -139,25 +152,27 @@ public sealed class MainForm : Form
             SaveConfig();
         };
 
-        _removeButton.Text = "Remove";
+        _removeButton.Text = _localization.Text("toolbar.remove");
         RegisterButton(_removeButton, primary: false);
         _removeButton.Click += (_, _) => RemoveSelectedRows();
 
-        _browseSourceButton.Text = "Choose Source";
+        _browseSourceButton.Text = _localization.Text("toolbar.choose_source");
         RegisterButton(_browseSourceButton, primary: false);
         _browseSourceButton.Click += (_, _) => BrowseSelectedPath(isSource: true);
 
-        _browseTargetButton.Text = "Choose Target";
+        _browseTargetButton.Text = _localization.Text("toolbar.choose_target");
         RegisterButton(_browseTargetButton, primary: false);
         _browseTargetButton.Click += (_, _) => BrowseSelectedPath(isSource: false);
 
-        _editFilterButton.Text = "Edit Filter...";
+        _editFilterButton.Text = _localization.Text("toolbar.edit_filter");
         RegisterButton(_editFilterButton, primary: false);
         _editFilterButton.Click += (_, _) => EditSelectedFilter();
 
-        toolbar.Controls.Add(CreateToolbarLabel("Every", new Padding(0, 7, 2, 0)));
+        ConfigureToolbarLabel(_everyLabel, new Padding(0, 7, 2, 0));
+        toolbar.Controls.Add(_everyLabel);
         toolbar.Controls.Add(_intervalInput);
-        toolbar.Controls.Add(CreateToolbarLabel("sec", new Padding(0, 7, 12, 0)));
+        ConfigureToolbarLabel(_secondsLabel, new Padding(0, 7, 12, 0));
+        toolbar.Controls.Add(_secondsLabel);
         toolbar.Controls.Add(_autoSyncCheck);
         toolbar.Controls.Add(_nowButton);
         toolbar.Controls.Add(_addButton);
@@ -182,8 +197,31 @@ public sealed class MainForm : Form
                 SaveConfig();
             }
         };
-        toolbar.Controls.Add(CreateToolbarLabel("Skin", new Padding(16, 7, 2, 0)));
+        ConfigureToolbarLabel(_skinLabel, new Padding(16, 7, 2, 0));
+        toolbar.Controls.Add(_skinLabel);
         toolbar.Controls.Add(_skinSelect);
+        _languageSelect.DropDownStyle = ComboBoxStyle.DropDownList;
+        _languageSelect.Width = 120;
+        _languageSelect.Margin = new Padding(16, 2, 0, 0);
+        _languageSelect.DisplayMember = nameof(LanguageOption.DisplayName);
+        _languageSelect.ValueMember = nameof(LanguageOption.Code);
+        _comboBoxes.Add(_languageSelect);
+        foreach (var language in LocalizationService.SupportedLanguages)
+        {
+            _languageSelect.Items.Add(language);
+        }
+        _languageSelect.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_isLoadingConfig && !_isApplyingLanguage && _languageSelect.SelectedItem is LanguageOption language)
+            {
+                _localization.SetLanguage(language.Code);
+                ApplyLanguage();
+                SaveConfig();
+            }
+        };
+        ConfigureToolbarLabel(_languageLabel, new Padding(16, 7, 2, 0));
+        toolbar.Controls.Add(_languageLabel);
+        toolbar.Controls.Add(_languageSelect);
         root.Controls.Add(toolbar, 0, 1);
 
         _grid.AutoGenerateColumns = false;
@@ -208,11 +246,12 @@ public sealed class MainForm : Form
         _grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(SyncPair.Name), HeaderText = "Name", Width = 180, MinimumWidth = 120 });
         _grid.Columns.Add(new DataGridViewComboBoxColumn
         {
+            Name = nameof(SyncPair.Mode),
             DataPropertyName = nameof(SyncPair.Mode),
             HeaderText = "Mode",
             Width = 140,
             MinimumWidth = 120,
-            DataSource = ModeOptions,
+            DataSource = _modeOptions,
             ValueMember = nameof(ModeOption.Value),
             DisplayMember = nameof(ModeOption.Label),
             FlatStyle = FlatStyle.Flat
@@ -267,7 +306,8 @@ public sealed class MainForm : Form
                 e.RowIndex >= 0 &&
                 _grid.Rows[e.RowIndex].DataBoundItem is SyncPair filterPair)
             {
-                e.Value = SyncFilter.FromPair(filterPair).Summary;
+                var filter = SyncFilter.FromPair(filterPair);
+                e.Value = _localization.FilterSummary(filter.HasRules);
                 e.FormattingApplied = true;
             }
         };
@@ -313,7 +353,7 @@ public sealed class MainForm : Form
         {
             UpdateCurrentStatusLabel();
 
-            if (GetActivityFilter() == "Selected")
+            if (GetActivityFilter() == "activity.filter.selected")
             {
                 RenderActivityLog();
             }
@@ -337,7 +377,7 @@ public sealed class MainForm : Form
             Panel2MinSize = 120,
             Margin = new Padding(0, 0, 0, 10)
         };
-        split.Panel1.Controls.Add(CreateSection("Sync pairs", _grid));
+        split.Panel1.Controls.Add(CreateSection(_syncPairsTitleLabel, _grid));
         split.Panel2.Controls.Add(CreateActivitySection());
         split.SizeChanged += (_, _) =>
         {
@@ -359,20 +399,16 @@ public sealed class MainForm : Form
         _statusLabel.AutoSize = true;
         _mutedLabels.Add(_statusLabel);
         _statusLabel.Padding = new Padding(2, 8, 0, 0);
-        _statusLabel.Text = FormatStatus("Ready");
+        _statusLabel.Text = FormatStatus(_localization.Text("status.ready"));
         root.Controls.Add(_statusLabel, 0, 3);
+        ApplyLanguage();
     }
 
-    private Label CreateToolbarLabel(string text, Padding padding)
+    private void ConfigureToolbarLabel(Label label, Padding padding)
     {
-        var label = new Label
-        {
-            Text = text,
-            AutoSize = true,
-            Padding = padding
-        };
+        label.AutoSize = true;
+        label.Padding = padding;
         _mutedLabels.Add(label);
-        return label;
     }
 
     private Control CreateHeader()
@@ -408,30 +444,22 @@ public sealed class MainForm : Form
         titleBlock.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         titleBlock.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        var titleLabel = new Label
-        {
-            Text = "simple sync",
-            AutoSize = true,
-            Font = new Font("Segoe UI Semibold", 18F, FontStyle.Bold),
-            Margin = new Padding(0)
-        };
-        _titleLabels.Add(titleLabel);
-        titleBlock.Controls.Add(titleLabel, 0, 0);
+        _headerTitleLabel.AutoSize = true;
+        _headerTitleLabel.Font = new Font("Segoe UI Semibold", 18F, FontStyle.Bold);
+        _headerTitleLabel.Margin = new Padding(0);
+        _titleLabels.Add(_headerTitleLabel);
+        titleBlock.Controls.Add(_headerTitleLabel, 0, 0);
 
-        var subtitleLabel = new Label
-        {
-            Text = "One-way file synchronization for local and network folders",
-            AutoSize = true,
-            Margin = new Padding(1, 2, 0, 0)
-        };
-        _mutedLabels.Add(subtitleLabel);
-        titleBlock.Controls.Add(subtitleLabel, 0, 1);
+        _headerSubtitleLabel.AutoSize = true;
+        _headerSubtitleLabel.Margin = new Padding(1, 2, 0, 0);
+        _mutedLabels.Add(_headerSubtitleLabel);
+        titleBlock.Controls.Add(_headerSubtitleLabel, 0, 1);
         header.Controls.Add(titleBlock, 1, 0);
 
         return header;
     }
 
-    private Control CreateSection(string title, Control content)
+    private Control CreateSection(Label label, Control content)
     {
         var section = new TableLayoutPanel
         {
@@ -445,13 +473,9 @@ public sealed class MainForm : Form
         section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var label = new Label
-        {
-            Text = title,
-            AutoSize = true,
-            Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
-            Margin = new Padding(0, 0, 0, 8)
-        };
+        label.AutoSize = true;
+        label.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        label.Margin = new Padding(0, 0, 0, 8);
         _titleLabels.Add(label);
         section.Controls.Add(label, 0, 0);
 
@@ -486,17 +510,13 @@ public sealed class MainForm : Form
         header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-        var label = new Label
-        {
-            Text = "Activity",
-            AutoSize = true,
-            Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold),
-            Margin = new Padding(0)
-        };
-        _titleLabels.Add(label);
-        header.Controls.Add(label, 0, 0);
+        _activityTitleLabel.AutoSize = true;
+        _activityTitleLabel.Font = new Font("Segoe UI Semibold", 10F, FontStyle.Bold);
+        _activityTitleLabel.Margin = new Padding(0);
+        _titleLabels.Add(_activityTitleLabel);
+        header.Controls.Add(_activityTitleLabel, 0, 0);
 
-        _currentStatusLabel.Text = "No sync pair selected";
+        _currentStatusLabel.Text = _localization.Text("activity.no_pair_selected");
         _currentStatusLabel.Dock = DockStyle.Fill;
         _currentStatusLabel.AutoSize = false;
         _currentStatusLabel.Height = 24;
@@ -509,9 +529,15 @@ public sealed class MainForm : Form
         _activityFilterSelect.DropDownStyle = ComboBoxStyle.DropDownList;
         _activityFilterSelect.Width = 120;
         _activityFilterSelect.Margin = new Padding(8, 0, 0, 0);
-        _activityFilterSelect.Items.AddRange(["All", "Selected", "Errors"]);
-        _activityFilterSelect.SelectedIndex = 0;
-        _activityFilterSelect.SelectedIndexChanged += (_, _) => RenderActivityLog();
+        _activityFilterSelect.DisplayMember = nameof(ActivityFilterOption.Label);
+        _activityFilterSelect.ValueMember = nameof(ActivityFilterOption.Key);
+        _activityFilterSelect.SelectedIndexChanged += (_, _) =>
+        {
+            if (!_isApplyingLanguage)
+            {
+                RenderActivityLog();
+            }
+        };
         _comboBoxes.Add(_activityFilterSelect);
         header.Controls.Add(_activityFilterSelect, 2, 0);
 
@@ -552,7 +578,7 @@ public sealed class MainForm : Form
         var text = GetClipboardPathText();
         if (string.IsNullOrWhiteSpace(text))
         {
-            AppendLog("클립보드에 붙여넣을 텍스트 경로가 없습니다.");
+            AppendLog(_localization.Text("activity.clipboard_no_path"));
             return;
         }
 
@@ -588,7 +614,7 @@ public sealed class MainForm : Form
         var text = GetClipboardPathText();
         if (string.IsNullOrWhiteSpace(text))
         {
-            AppendLog("클립보드에 붙여넣을 텍스트 경로가 없습니다.");
+            AppendLog(_localization.Text("activity.clipboard_no_path"));
             return;
         }
 
@@ -692,7 +718,8 @@ public sealed class MainForm : Form
         try
         {
             var config = _configService.Load();
-            _filterPresets = config.FilterPresets.Count == 0 ? FilterPreset.CreateDefaults() : config.FilterPresets;
+            _localization.SetLanguage(config.Language);
+            _filterPresets = config.FilterPresets.Count == 0 ? FilterPreset.CreateDefaults(_localization) : config.FilterPresets;
             _intervalInput.Value = Math.Clamp(config.IntervalSeconds, 1, 86_400);
             Size = new Size(
                 Math.Max(MinimumSize.Width, config.WindowWidth),
@@ -704,6 +731,8 @@ public sealed class MainForm : Form
             {
                 _pairs.Add(pair);
             }
+
+            ApplyLanguage();
         }
         finally
         {
@@ -732,6 +761,7 @@ public sealed class MainForm : Form
         {
             IntervalSeconds = (int)_intervalInput.Value,
             Skin = _currentSkin.Key,
+            Language = _localization.LanguageCode,
             WindowWidth = WindowState == FormWindowState.Normal ? Width : RestoreBounds.Width,
             WindowHeight = WindowState == FormWindowState.Normal ? Height : RestoreBounds.Height,
             FilterPresets = _filterPresets,
@@ -802,6 +832,139 @@ public sealed class MainForm : Form
         }
     }
 
+    private void ApplyLanguage()
+    {
+        _isApplyingLanguage = true;
+        SetRedraw(this, enabled: false);
+        SetRedraw(_grid, enabled: false);
+        SuspendLayout();
+        _grid.SuspendLayout();
+
+        try
+        {
+            Text = FormatWindowTitle(_isDebugBuild, _localization);
+            _headerTitleLabel.Text = _localization.Text("app.title");
+            _headerSubtitleLabel.Text = _localization.Text("app.subtitle");
+            _everyLabel.Text = _localization.Text("toolbar.every");
+            _secondsLabel.Text = _localization.Text("toolbar.seconds");
+            _autoSyncCheck.Text = _localization.Text("toolbar.auto");
+            _nowButton.Text = _localization.Text("toolbar.sync_now");
+            _addButton.Text = _localization.Text("toolbar.add_pair");
+            _removeButton.Text = _localization.Text("toolbar.remove");
+            _browseSourceButton.Text = _localization.Text("toolbar.choose_source");
+            _browseTargetButton.Text = _localization.Text("toolbar.choose_target");
+            _editFilterButton.Text = _localization.Text("toolbar.edit_filter");
+            _skinLabel.Text = _localization.Text("toolbar.skin");
+            _languageLabel.Text = _localization.Text("toolbar.language");
+            _syncPairsTitleLabel.Text = _localization.Text("section.sync_pairs");
+            _activityTitleLabel.Text = _localization.Text("section.activity");
+
+            SetColumnHeader(nameof(SyncPair.Enabled), _localization.Text("grid.on"));
+            SetColumnHeader(nameof(SyncPair.Name), _localization.Text("grid.name"));
+            SetColumnHeader(nameof(SyncPair.Mode), _localization.Text("grid.mode"));
+            SetColumnHeader("Filter", _localization.Text("grid.filter"));
+            SetColumnHeader("Progress", _localization.Text("grid.progress"));
+            SetColumnHeader(nameof(SyncPair.Source), _localization.Text("grid.source"));
+            SetColumnHeader("Direction", _localization.Text("grid.flow"));
+            SetColumnHeader(nameof(SyncPair.Target), _localization.Text("grid.target"));
+
+            RebuildModeOptions();
+            RebuildActivityFilterOptions();
+            SelectCurrentLanguage();
+            UpdateCurrentStatusLabel();
+            UpdateStatus();
+        }
+        finally
+        {
+            _grid.ResumeLayout(performLayout: false);
+            ResumeLayout(performLayout: true);
+            SetRedraw(_grid, enabled: true);
+            SetRedraw(this, enabled: true);
+            _isApplyingLanguage = false;
+        }
+
+        RenderActivityLog();
+        _grid.Invalidate();
+        Invalidate(invalidateChildren: true);
+    }
+
+    private static void SetRedraw(Control control, bool enabled)
+    {
+        if (!control.IsHandleCreated)
+        {
+            return;
+        }
+
+        SendMessage(control.Handle, WmSetRedraw, enabled ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
+    }
+
+    private void SetColumnHeader(string nameOrProperty, string text)
+    {
+        foreach (DataGridViewColumn column in _grid.Columns)
+        {
+            if (column.Name == nameOrProperty || column.DataPropertyName == nameOrProperty)
+            {
+                column.HeaderText = text;
+                return;
+            }
+        }
+    }
+
+    private void RebuildModeOptions()
+    {
+        _modeOptions.Clear();
+        _modeOptions.Add(new ModeOption(SyncModes.Copy, _localization.ModeLabel(SyncModes.Copy)));
+        _modeOptions.Add(new ModeOption(SyncModes.Mirror, _localization.ModeLabel(SyncModes.Mirror)));
+
+        if (_grid.Columns[nameof(SyncPair.Mode)] is DataGridViewComboBoxColumn modeColumn)
+        {
+            modeColumn.DataSource = null;
+            modeColumn.DataSource = _modeOptions;
+            modeColumn.ValueMember = nameof(ModeOption.Value);
+            modeColumn.DisplayMember = nameof(ModeOption.Label);
+        }
+    }
+
+    private void RebuildActivityFilterOptions()
+    {
+        var selectedKey = GetActivityFilter();
+        _activityFilterSelect.Items.Clear();
+        _activityFilterSelect.Items.Add(new ActivityFilterOption("activity.filter.all", _localization.Text("activity.filter.all")));
+        _activityFilterSelect.Items.Add(new ActivityFilterOption("activity.filter.selected", _localization.Text("activity.filter.selected")));
+        _activityFilterSelect.Items.Add(new ActivityFilterOption("activity.filter.errors", _localization.Text("activity.filter.errors")));
+        SelectActivityFilter(selectedKey);
+    }
+
+    private void SelectActivityFilter(string selectedKey)
+    {
+        selectedKey = NormalizeActivityFilter(selectedKey);
+        for (var i = 0; i < _activityFilterSelect.Items.Count; i++)
+        {
+            if (_activityFilterSelect.Items[i] is ActivityFilterOption option && option.Key == selectedKey)
+            {
+                _activityFilterSelect.SelectedIndex = i;
+                return;
+            }
+        }
+
+        if (_activityFilterSelect.Items.Count > 0)
+        {
+            _activityFilterSelect.SelectedIndex = 0;
+        }
+    }
+
+    private void SelectCurrentLanguage()
+    {
+        for (var i = 0; i < _languageSelect.Items.Count; i++)
+        {
+            if (_languageSelect.Items[i] is LanguageOption option && option.Code == _localization.LanguageCode)
+            {
+                _languageSelect.SelectedIndex = i;
+                return;
+            }
+        }
+    }
+
     private void ConfigureTimer()
     {
         _timer.Stop();
@@ -812,17 +975,14 @@ public sealed class MainForm : Form
         if (_autoSyncCheck.Checked)
         {
             _timer.Start();
-            _statusLabel.Text = FormatStatus($"Auto sync every {_intervalInput.Value} sec");
         }
-        else
-        {
-            _statusLabel.Text = FormatStatus("Auto sync paused");
-        }
+
+        UpdateStatus();
     }
 
     private async void TimerTick(object? sender, EventArgs e)
     {
-        await RunSyncAsync("자동 실행");
+        await RunSyncAsync(_localization.Text("activity.auto_reason"));
     }
 
     private async Task RunSyncAsync(string reason)
@@ -831,7 +991,7 @@ public sealed class MainForm : Form
 
         if (!await _syncLock.WaitAsync(0))
         {
-            AppendLog("이미 동기화가 실행 중입니다.");
+            AppendLog(_localization.Text("activity.already_running"));
             return;
         }
 
@@ -840,12 +1000,12 @@ public sealed class MainForm : Form
         {
             _syncCancellation.Dispose();
             _syncCancellation = new CancellationTokenSource();
-            AppendLog($"{reason} 시작");
+            AppendLog(_localization.Format("activity.started", reason));
 
             var runnablePairs = GetRunnablePairs(_pairs);
             if (runnablePairs.Count == 0)
             {
-                AppendLog(NoSyncTargetsMessage);
+                AppendLog(_localization.Text("activity.no_targets"));
                 return;
             }
 
@@ -855,32 +1015,32 @@ public sealed class MainForm : Form
 
                 var pairName = PairLogName(pair);
                 UpdatePairProgress(new SyncProgress { Pair = pair, Phase = SyncPhase.Pending });
-                AppendLog($"[{pairName}] 시작", pair);
-                AppendLog($"[{pairName}] 모드: {DescribeMode(pair.Mode)}", pair);
-                AppendLog($"[{pairName}] 진행경로: {LogPath(pair.Source)} -> {LogPath(pair.Target)}", pair);
+                AppendLog(_localization.Format("activity.pair.started", pairName), pair);
+                AppendLog(_localization.Format("activity.pair.mode", pairName, _localization.ModeLabel(pair.Mode)), pair);
+                AppendLog(_localization.Format("activity.pair.path", pairName, LogPath(pair.Source), LogPath(pair.Target)), pair);
                 var pairFilter = SyncFilter.FromPair(pair);
                 if (pairFilter.HasRules)
                 {
-                    AppendLog($"[{pairName}] 필터: {pairFilter.Summary}", pair);
+                    AppendLog(_localization.Format("activity.pair.filter", pairName, _localization.FilterSummary(pairFilter.HasRules)), pair);
                 }
 
                 var progress = new Progress<SyncProgress>(UpdatePairProgress);
                 var result = await _syncService.SyncAsync([pair], progress, _syncCancellation.Token);
-                AppendLog($"[{pairName}] 완료: 복사 {result.CopiedFiles}, 유지 {result.SkippedFiles}, 삭제 {result.DeletedFiles}, 제외 {result.ExcludedFiles}, 실패 {result.FailedFiles}", pair, result.FailedFiles > 0);
+                AppendLog(_localization.Format("activity.completed", pairName, result.CopiedFiles, result.SkippedFiles, result.DeletedFiles, result.ExcludedFiles, result.FailedFiles), pair, result.FailedFiles > 0);
 
                 foreach (var message in result.Messages)
                 {
-                    AppendLog($"[{pairName}] - {message}", pair, IsErrorMessage(message));
+                    AppendLog(_localization.Format("activity.message", pairName, message), pair, IsErrorMessage(message));
                 }
             }
         }
         catch (OperationCanceledException)
         {
-            AppendLog("동기화가 취소되었습니다.");
+            AppendLog(_localization.Text("activity.cancelled"));
         }
         catch (Exception ex)
         {
-            AppendLog($"실패: {ex.Message}", isError: true);
+            AppendLog(_localization.Format("activity.failed", ex.Message), isError: true);
         }
         finally
         {
@@ -937,7 +1097,7 @@ public sealed class MainForm : Form
         using var dialog = new FolderBrowserDialog
         {
             UseDescriptionForTitle = true,
-            Description = isSource ? "소스 폴더 선택" : "타겟 폴더 선택"
+            Description = isSource ? _localization.Text("dialog.source_description") : _localization.Text("dialog.target_description")
         };
 
         if (dialog.ShowDialog(this) != DialogResult.OK)
@@ -965,7 +1125,7 @@ public sealed class MainForm : Form
             return;
         }
 
-        using var dialog = new FilterDialog(pair, _filterPresets);
+        using var dialog = new FilterDialog(pair, _filterPresets, _localization);
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
             return;
@@ -982,8 +1142,20 @@ public sealed class MainForm : Form
 
     private void SetBusy(bool busy)
     {
+        _isBusy = busy;
         _nowButton.Enabled = !busy;
-        _statusLabel.Text = FormatStatus(busy ? "Syncing..." : (_autoSyncCheck.Checked ? $"Auto sync every {_intervalInput.Value} sec" : "Auto sync paused"));
+        UpdateStatus();
+    }
+
+    private void UpdateStatus()
+    {
+        var status = _isBusy
+            ? _localization.Text("status.syncing")
+            : _autoSyncCheck.Checked
+                ? _localization.Format("status.auto_every", _intervalInput.Value)
+                : _localization.Text("status.auto_paused");
+
+        _statusLabel.Text = FormatStatus(status);
     }
 
     private string FormatStatus(string status)
@@ -993,7 +1165,12 @@ public sealed class MainForm : Form
 
     public static string FormatWindowTitle(bool isDebugBuild)
     {
-        return isDebugBuild ? "simple sync (Debug)" : "simple sync";
+        return FormatWindowTitle(isDebugBuild, new LocalizationService("en-US"));
+    }
+
+    public static string FormatWindowTitle(bool isDebugBuild, LocalizationService localization)
+    {
+        return localization.Text(isDebugBuild ? "app.title_debug" : "app.title");
     }
 
     public static string FormatStatus(string appVersion, string status, bool isDebugBuild)
@@ -1128,14 +1305,14 @@ public sealed class MainForm : Form
 
         return progress.Phase switch
         {
-            SyncPhase.Pending => "Pending",
-            SyncPhase.Preparing => "Preparing",
-            SyncPhase.Completed => "Done",
-            SyncPhase.Failed => "Failed",
-            SyncPhase.Deleting => "Deleting",
+            SyncPhase.Pending => _localization.Text("progress.pending"),
+            SyncPhase.Preparing => _localization.Text("progress.preparing"),
+            SyncPhase.Completed => _localization.Text("progress.done"),
+            SyncPhase.Failed => _localization.Text("progress.failed"),
+            SyncPhase.Deleting => _localization.Text("progress.deleting"),
             _ when progress.TotalFiles is > 0 => $"{progress.ProcessedFiles} / {progress.TotalFiles}",
             _ when progress.CurrentFileTotalBytes is > 0 => $"{progress.CurrentFileBytes * 100 / progress.CurrentFileTotalBytes.Value}%",
-            _ => "Working"
+            _ => _localization.Text("progress.working")
         };
     }
 
@@ -1169,29 +1346,28 @@ public sealed class MainForm : Form
 
     public static string FormatCurrentStatus(SyncPair? pair, SyncProgress? progress)
     {
+        return FormatCurrentStatus(pair, progress, new LocalizationService("en-US"));
+    }
+
+    public static string FormatCurrentStatus(SyncPair? pair, SyncProgress? progress, LocalizationService localization)
+    {
         if (pair is null)
         {
-            return "No sync pair selected";
+            return localization.Text("activity.no_pair_selected");
         }
 
         var pairName = PairLogName(pair);
-        if (progress is null)
+        var status = progress?.Phase switch
         {
-            return $"Selected: {pairName} - Idle";
-        }
-
-        var status = progress.Phase switch
-        {
-            SyncPhase.Pending => "Pending",
-            SyncPhase.Preparing => "Scanning",
-            SyncPhase.Copying => "Copying",
-            SyncPhase.Deleting => "Deleting",
-            SyncPhase.Completed => "Done",
-            SyncPhase.Failed => "Failed",
-            _ => "Working"
+            SyncPhase.Preparing => localization.Text("activity.status.scanning"),
+            SyncPhase.Copying => localization.Text("activity.status.copying"),
+            SyncPhase.Deleting => localization.Text("activity.status.deleting"),
+            SyncPhase.Completed => localization.Text("activity.status.done"),
+            SyncPhase.Failed => localization.Text("activity.status.failed"),
+            _ => localization.Text("activity.status.idle")
         };
 
-        return $"Selected: {pairName} - {status}";
+        return localization.Format("activity.selected_status", pairName, status);
     }
 
     public static string FormatCurrentDetail(SyncProgress progress)
@@ -1208,17 +1384,32 @@ public sealed class MainForm : Form
             _progressByPair.TryGetValue(selectedPair, out progress);
         }
 
-        _currentStatusLabel.Text = FormatCurrentStatus(selectedPair, progress);
+        _currentStatusLabel.Text = FormatCurrentStatus(selectedPair, progress, _localization);
     }
 
     private string GetActivityFilter()
     {
-        return _activityFilterSelect.SelectedItem as string ?? "All";
+        if (_activityFilterSelect.SelectedItem is ActivityFilterOption option)
+        {
+            return option.Key;
+        }
+
+        return NormalizeActivityFilter(_activityFilterSelect.SelectedItem as string);
+    }
+
+    public static string NormalizeActivityFilter(string? filter)
+    {
+        return filter switch
+        {
+            "activity.filter.selected" or "Selected" => "activity.filter.selected",
+            "activity.filter.errors" or "Errors" => "activity.filter.errors",
+            _ => "activity.filter.all"
+        };
     }
 
     private void RenderActivityLog()
     {
-        var filter = GetActivityFilter();
+        var filter = NormalizeActivityFilter(GetActivityFilter());
         var selectedPair = _grid.CurrentRow?.DataBoundItem as SyncPair;
         var builder = new StringBuilder();
 
@@ -1237,10 +1428,10 @@ public sealed class MainForm : Form
 
     private static bool IsActivityVisible(ActivityEntry entry, string filter, SyncPair? selectedPair)
     {
-        return filter switch
+        return NormalizeActivityFilter(filter) switch
         {
-            "Selected" => entry.Pair is null || (selectedPair is not null && ReferenceEquals(entry.Pair, selectedPair)),
-            "Errors" => entry.IsError,
+            "activity.filter.selected" => entry.Pair is null || (selectedPair is not null && ReferenceEquals(entry.Pair, selectedPair)),
+            "activity.filter.errors" => entry.IsError,
             _ => true
         };
     }

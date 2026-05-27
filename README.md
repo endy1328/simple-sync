@@ -2,7 +2,7 @@
 
 `simple sync`는 특정 소스 디렉터리에서 타겟 디렉터리로 변경된 파일을 단방향 복사해 주는 간단한 Windows 데스크톱 앱입니다.
 
-현재 버전은 `1.1.1`입니다. 버전 변경 이력은 `CHANGELOG.md`에 기록하고, 현재 배포 버전은 `VERSION` 파일에 저장합니다.
+현재 버전은 `1.2.1`입니다. 버전 변경 이력은 `CHANGELOG.md`에 기록하고, 현재 배포 버전은 `VERSION` 파일에 저장합니다.
 
 ![simple sync - Fluent Light](https://private-user-images.githubusercontent.com/31756669/595345787-bb712b28-88a8-4d24-9b1e-af2e3c5add33.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzkyNjkwNDcsIm5iZiI6MTc3OTI2ODc0NywicGF0aCI6Ii8zMTc1NjY2OS81OTUzNDU3ODctYmI3MTJiMjgtODhhOC00ZDI0LTliMWUtYWYyZTNjNWFkZDMzLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNjA1MjAlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjYwNTIwVDA5MTkwN1omWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWE3M2QxYTk5MzZkMzBjYTJlMzkyYjU2ZTcwNzVhMmYzOTZhYjY1MWJmOTIzZThmZjA1OWY3Njc5ODI4YmZiNzkmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0JnJlc3BvbnNlLWNvbnRlbnQtdHlwZT1pbWFnZSUyRnBuZyJ9.CP1hX1JQDmpXKxCyWGnHmnUhGCigvdiDJbXIYINDsWo)
 
@@ -25,6 +25,7 @@
 - `Add Pair`로 새로 추가한 동기화 쌍은 경로 입력 중 자동 실행되지 않도록 기본 `Off` 상태로 시작합니다.
 - `Sync pairs` 목록의 컬럼 폭을 드래그해서 조절할 수 있고, 긴 경로는 가로 스크롤로 확인할 수 있습니다.
 - `Skin` 콤보박스에서 내장 스킨을 선택할 수 있습니다.
+- `언어` 콤보박스에서 `한국어` 또는 `English`를 선택할 수 있습니다.
 - `Sync pairs`와 `Activity` 사이의 구분선을 드래그해 영역 높이를 조절할 수 있습니다.
 - 마지막으로 종료한 창 크기를 기억하고 다음 실행 때 같은 크기로 엽니다.
 - 하단 상태 영역에 현재 프로그램 버전을 표시합니다.
@@ -32,6 +33,13 @@
 - 중복 실행을 막아 같은 앱이 여러 개 떠서 파일을 잠그는 상황을 줄입니다.
 
 이 앱은 양방향 동기화를 수행하지 않습니다. `Mirror source` 모드에서는 소스에 없는 타겟 파일을 삭제할 수 있으므로 중요한 타겟 폴더에는 주의해서 사용해야 합니다.
+
+## 다국어 설정
+
+- 상단 툴바의 `언어` 콤보박스에서 `한국어` 또는 `English`를 선택할 수 있습니다.
+- 선택한 언어는 `config.toml`의 `language` 값으로 저장되며 다음 실행 시 자동으로 복원됩니다.
+- 기존 설정 파일에 `language`가 없어도 실행 가능하며 기본값은 `ko-KR`입니다.
+- 내부 동기화 방식 값은 계속 `copy`, `mirror`로 저장되므로 기존 설정과 호환됩니다.
 
 ## 실행
 
@@ -146,6 +154,42 @@ dist\simple-sync-setup.exe
 설치 프로그램은 `.NET Windows Desktop Runtime`이 없는 PC에서도 실행되도록 self-contained publish 결과를 포함합니다.
 기존 `dist\simple-sync-setup.exe`가 있어도 스크립트가 최신 publish 결과로 덮어써서 다시 만듭니다.
 
+## GitHub Release 생성
+
+설치 파일을 GitHub Release에 업로드하려면 먼저 설치 프로그램을 생성합니다.
+
+```powershell
+.\scripts\publish-installer.ps1
+```
+
+Release 생성 전 확인:
+
+```powershell
+.\scripts\create-github-release.ps1 -DryRun
+```
+
+실제 Release 생성:
+
+```powershell
+.\scripts\create-github-release.ps1
+```
+
+기본값은 `VERSION` 파일의 버전을 읽어 `v버전` 태그를 만들고, `dist\simple-sync-setup.exe`와 `release-notes-버전.md`를 사용합니다.
+예를 들어 `VERSION`이 `1.2.1`이면 `v1.2.1` 태그와 `release-notes-1.2.1.md`를 사용합니다.
+
+다른 저장소, 브랜치, 파일을 지정해야 하는 경우:
+
+```powershell
+.\scripts\create-github-release.ps1 `
+  -Repository "endy1328/simple-sync" `
+  -Target "main" `
+  -Version "1.2.1" `
+  -InstallerPath ".\dist\simple-sync-setup.exe" `
+  -NotesPath ".\release-notes-1.2.1.md"
+```
+
+스크립트는 설치 파일의 SHA256도 출력합니다. 이 값은 winget manifest의 `InstallerSha256`에 사용합니다.
+
 ## 설정 파일
 
 `config.toml`은 `simple sync.exe`와 같은 폴더에 저장됩니다. 앱은 시작 시 이 파일을 읽고, 화면에서 설정이 변경되거나 앱이 종료될 때 최신 값을 저장합니다.
@@ -252,6 +296,8 @@ Git에 포함:
 - `scripts/simple-sync.ps1`
 - `scripts/simple-sync-robocopy.cmd`
 - `scripts/publish-installer.ps1`
+- `scripts/create-github-release.ps1`
+- `release-notes-*.md`
 - `installer/simple-sync.iss`
 - `tests/SimpleSync.Tests`
 - 아이콘 파일과 아이콘 생성 스크립트

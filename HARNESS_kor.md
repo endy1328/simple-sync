@@ -73,6 +73,14 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 - 필터 규칙을 변경하고 `config.toml`에 `include`, `exclude`, `extensions`, `files`, `include_subdirectories`가 저장되는지 확인합니다.
 - `config.toml`의 `[[filter_presets]]` 항목을 수정하고 필터 팝업이 변경된 프리셋 버튼/값을 사용하는지 확인합니다.
 
+## 다국어 수동 확인
+
+1. `config.toml`에 `language` 키가 없는 상태로 앱을 실행하고 한국어가 선택되는지 확인합니다.
+2. 언어를 English로 변경하고 툴바, 그리드 헤더, 상태 텍스트, Activity 필터, 필터 팝업 문구가 즉시 변경되는지 확인합니다.
+3. 앱을 닫았다가 다시 실행하고 English가 복원되는지 확인합니다.
+4. 다시 한국어로 변경하고 `language = "ko-KR"`이 저장되는지 확인합니다.
+5. 두 언어에서 동기화를 실행해 파일 복사 동작이 변경되지 않았는지 확인합니다.
+
 ## 설정 위치
 
 실행 시 `config.toml`은 실행 파일 옆에 있습니다. 개발 중에는 보통 다음 위치입니다.

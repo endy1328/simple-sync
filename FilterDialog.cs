@@ -11,15 +11,22 @@ public sealed class FilterDialog : Form
     private readonly List<FilterPreset> _presets;
     private readonly List<FilterPreset> _selectedPresets = [];
     private readonly List<Button> _presetButtons = [];
+    private readonly LocalizationService _localization;
 
     public FilterDialog(SyncPair pair)
-        : this(pair, FilterPreset.CreateDefaults())
+        : this(pair, FilterPreset.CreateDefaults(), new LocalizationService())
     {
     }
 
     public FilterDialog(SyncPair pair, IEnumerable<FilterPreset> presets)
+        : this(pair, presets, new LocalizationService())
     {
-        Text = $"Filter for \"{(string.IsNullOrWhiteSpace(pair.Name) ? "Pair" : pair.Name.Trim())}\"";
+    }
+
+    public FilterDialog(SyncPair pair, IEnumerable<FilterPreset> presets, LocalizationService localization)
+    {
+        _localization = localization;
+        Text = FormatTitle(pair, _localization);
         Font = new Font("Segoe UI", 9F);
         AutoScaleMode = AutoScaleMode.Dpi;
         MinimumSize = new Size(980, 760);
@@ -54,6 +61,12 @@ public sealed class FilterDialog : Form
     public List<string> Files { get; private set; } = [];
     public bool IncludeSubdirectories { get; private set; } = true;
 
+    public static string FormatTitle(SyncPair pair, LocalizationService localization)
+    {
+        var pairName = string.IsNullOrWhiteSpace(pair.Name) ? "Pair" : pair.Name.Trim();
+        return localization.Format("filter.title", pairName);
+    }
+
     private void BuildLayout()
     {
         var root = new TableLayoutPanel
@@ -75,7 +88,7 @@ public sealed class FilterDialog : Form
 
         var intro = new Label
         {
-            Text = "Extensions, Specific files, and Include patterns are combined as OR rules: a file is included if it matches any one of them.\r\nExclude patterns are applied last and always win, even when a file was included above.",
+            Text = _localization.Text("filter.intro"),
             AutoSize = false,
             Dock = DockStyle.Fill,
             Margin = new Padding(0, 0, 0, 10)
@@ -93,7 +106,7 @@ public sealed class FilterDialog : Form
         presetPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         presetPanel.Controls.Add(new Label
         {
-            Text = "Quick presets: click one or more buttons to append suggested extensions or exclude patterns.",
+            Text = _localization.Text("filter.quick_presets"),
             AutoSize = true,
             ForeColor = SystemColors.GrayText,
             Margin = new Padding(0, 0, 0, 6)
@@ -112,12 +125,12 @@ public sealed class FilterDialog : Form
         presetPanel.Controls.Add(presets, 0, 1);
         root.Controls.Add(presetPanel, 0, 1);
 
-        root.Controls.Add(CreateInputGroup("Extensions", "File types to include. Example: .md, .pdf, .jpg", "Use this when every file with the same extension should sync.", _extensionsInput), 0, 2);
-        root.Controls.Add(CreateInputGroup("Specific files", "Exact files from the source folder. Example: README.md, docs/setup.md", "Use source-relative paths. For C:\\source\\docs\\setup.md, enter docs/setup.md.", _filesInput), 0, 3);
-        root.Controls.Add(CreateInputGroup("Include patterns", "Folder or filename rules to include. Example: docs/**, reports/*.pdf", "Use glob-style rules when extensions or exact files are not enough.", _includeInput), 0, 4);
-        root.Controls.Add(CreateInputGroup("Exclude patterns", "Always excluded after include rules. Example: bin/**, obj/**, *.tmp", "Exclude wins over Extensions, Specific files, and Include patterns.", _excludeInput), 0, 5);
+        root.Controls.Add(CreateInputGroup(_localization.Text("filter.extensions.label"), _localization.Text("filter.extensions.hint"), _localization.Text("filter.extensions.tooltip"), _extensionsInput), 0, 2);
+        root.Controls.Add(CreateInputGroup(_localization.Text("filter.files.label"), _localization.Text("filter.files.hint"), _localization.Text("filter.files.tooltip"), _filesInput), 0, 3);
+        root.Controls.Add(CreateInputGroup(_localization.Text("filter.include.label"), _localization.Text("filter.include.hint"), _localization.Text("filter.include.tooltip"), _includeInput), 0, 4);
+        root.Controls.Add(CreateInputGroup(_localization.Text("filter.exclude.label"), _localization.Text("filter.exclude.hint"), _localization.Text("filter.exclude.tooltip"), _excludeInput), 0, 5);
 
-        _includeSubdirectoriesCheck.Text = "Include subdirectories";
+        _includeSubdirectoriesCheck.Text = _localization.Text("filter.include_subdirectories");
         _includeSubdirectoriesCheck.AutoSize = true;
         _includeSubdirectoriesCheck.Margin = new Padding(0, 10, 0, 10);
         root.Controls.Add(_includeSubdirectoriesCheck, 0, 6);
@@ -128,9 +141,9 @@ public sealed class FilterDialog : Form
             FlowDirection = FlowDirection.RightToLeft,
             Dock = DockStyle.Fill
         };
-        var applyButton = new Button { Text = "Apply", DialogResult = DialogResult.OK, AutoSize = true };
-        var cancelButton = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
-        var resetButton = new Button { Text = "Reset", AutoSize = true };
+        var applyButton = new Button { Text = _localization.Text("button.apply"), DialogResult = DialogResult.OK, AutoSize = true };
+        var cancelButton = new Button { Text = _localization.Text("button.cancel"), DialogResult = DialogResult.Cancel, AutoSize = true };
+        var resetButton = new Button { Text = _localization.Text("button.reset"), AutoSize = true };
         resetButton.Click += (_, _) => ResetValues();
         applyButton.Click += (_, _) => SaveValues();
         buttons.Controls.Add(applyButton);
