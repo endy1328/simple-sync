@@ -20,6 +20,8 @@
 - 설정은 실행 파일 옆의 `config.toml`에 유지합니다.
 - 개발 중 설치본과 `dotnet run` 실행본을 나란히 비교할 수 있도록 Debug 빌드는 Release와 다른 단일 인스턴스 Mutex를 사용합니다.
 - 배포 버전은 `VERSION`에 기록하고, `CHANGELOG.md`와 프로젝트/설치 버전을 함께 맞춥니다.
+- GitHub 릴리스 노트와 릴리스 생성 보조 스크립트 흐름을 현재 버전에 맞게 유지합니다.
+- winget 패키지 manifest는 이 저장소가 아니라 별도 `winget-pkgs` fork/worktree에서 관리합니다.
 - 구현 변경 후 README와 하네스 문서를 최신 상태로 유지합니다.
 - 현재 작업과 무관한 사용자 변경을 덮어쓰지 않습니다.
 - 변경 범위를 작게 유지하고, 인계 전 `dotnet build`와 콘솔 동기화 테스트로 검증합니다.
@@ -41,3 +43,10 @@
 - `HARNESS.md`와 `HARNESS_kor.md`
 
 운영 동작, 검증 방식, 프로젝트 워크플로가 바뀌면 두 파일을 함께 업데이트합니다.
+
+## 릴리스 워크플로
+
+- 설치 파일은 `scripts\publish-installer.ps1`로 생성합니다.
+- GitHub Release는 `scripts\create-github-release.ps1 -DryRun`으로 먼저 확인한 뒤 `scripts\create-github-release.ps1`로 생성합니다.
+- 릴리스 노트는 저장소 루트의 `release-notes-<version>.md` 파일로 관리합니다.
+- winget manifest는 이 저장소에 저장하지 않습니다. `C:\workspace\winget-pkgs` 같은 별도 checkout에서 준비합니다.

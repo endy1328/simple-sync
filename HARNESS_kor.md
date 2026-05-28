@@ -48,6 +48,26 @@ dotnet publish -c Release -r win-x64 --self-contained false
 bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 ```
 
+설치 파일 생성:
+
+```powershell
+.\scripts\publish-installer.ps1
+```
+
+기대 산출물:
+
+```text
+dist\simple-sync-setup.exe
+```
+
+GitHub Release dry run:
+
+```powershell
+.\scripts\create-github-release.ps1 -DryRun
+```
+
+기대 결과: 실제 Release를 만들지 않고 대상 저장소, 태그, 설치 파일 경로, 릴리스 노트 경로, SHA256, `gh release create` 명령을 출력합니다.
+
 ## 수동 검증 체크리스트
 
 - 앱을 시작하고 기존 `config.toml` 값이 로드되는지 확인합니다.
@@ -80,6 +100,22 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 3. 앱을 닫았다가 다시 실행하고 English가 복원되는지 확인합니다.
 4. 다시 한국어로 변경하고 `language = "ko-KR"`이 저장되는지 확인합니다.
 5. 두 언어에서 동기화를 실행해 파일 복사 동작이 변경되지 않았는지 확인합니다.
+
+## winget 패키징 확인
+
+- winget manifest는 `C:\workspace\winget-pkgs` 같은 별도 저장소 checkout에서 관리합니다.
+- `1.2.1` 버전 manifest 폴더는 `C:\workspace\winget-pkgs\manifests\e\Endy1328\SimpleSync\1.2.1`입니다.
+- `winget-pkgs` checkout에서 아래 명령으로 manifest를 검증합니다.
+
+```powershell
+winget validate .\manifests\e\Endy1328\SimpleSync\1.2.1
+```
+
+- 로컬 manifest 설치 테스트는 관리자 권한 셸에서 아래 설정을 한 번 켜야 합니다.
+
+```powershell
+winget settings --enable LocalManifestFiles
+```
 
 ## 설정 위치
 

@@ -190,6 +190,46 @@ Release 생성 전 확인:
 
 스크립트는 설치 파일의 SHA256도 출력합니다. 이 값은 winget manifest의 `InstallerSha256`에 사용합니다.
 
+## winget 등록 준비
+
+winget manifest는 이 저장소 안에 만들지 않고, `microsoft/winget-pkgs`를 fork한 별도 저장소에서 관리합니다.
+
+권장 위치:
+
+```text
+C:\workspace\winget-pkgs
+```
+
+`simple sync` 1.2.1 manifest 위치:
+
+```text
+C:\workspace\winget-pkgs
+└─ manifests
+   └─ e
+      └─ Endy1328
+         └─ SimpleSync
+            └─ 1.2.1
+               ├─ Endy1328.SimpleSync.yaml
+               ├─ Endy1328.SimpleSync.installer.yaml
+               └─ Endy1328.SimpleSync.locale.en-US.yaml
+```
+
+검증:
+
+```powershell
+cd C:\workspace\winget-pkgs
+winget validate .\manifests\e\Endy1328\SimpleSync\1.2.1
+```
+
+로컬 manifest 설치 테스트는 관리자 권한 PowerShell에서 아래 기능을 한 번 켠 뒤 실행합니다.
+
+```powershell
+winget settings --enable LocalManifestFiles
+winget install --manifest .\manifests\e\Endy1328\SimpleSync\1.2.1
+```
+
+공식 winget 등록은 `C:\workspace\winget-pkgs`에서 변경분을 커밋하고 `microsoft/winget-pkgs`로 PR을 제출해야 완료됩니다.
+
 ## 설정 파일
 
 `config.toml`은 `simple sync.exe`와 같은 폴더에 저장됩니다. 앱은 시작 시 이 파일을 읽고, 화면에서 설정이 변경되거나 앱이 종료될 때 최신 값을 저장합니다.
@@ -201,6 +241,7 @@ Release 생성 전 확인:
 ```toml
 interval_seconds = 10
 skin = "syncback_blue"
+language = "ko-KR"
 window_width = 1720
 window_height = 1120
 

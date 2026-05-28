@@ -48,6 +48,26 @@ Expected output:
 bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 ```
 
+Installer output:
+
+```powershell
+.\scripts\publish-installer.ps1
+```
+
+Expected output:
+
+```text
+dist\simple-sync-setup.exe
+```
+
+GitHub Release dry run:
+
+```powershell
+.\scripts\create-github-release.ps1 -DryRun
+```
+
+Expected result: the command prints the target repository, tag, installer path, release notes path, SHA256, and the `gh release create` command without creating a release.
+
 ## Manual Verification Checklist
 
 - Start the app and confirm existing `config.toml` values load.
@@ -80,6 +100,22 @@ bin\Release\net10.0-windows\win-x64\publish\simple sync.exe
 3. Close and reopen the app; confirm English is restored from `config.toml`.
 4. Switch back to Korean; confirm `language = "ko-KR"` is saved.
 5. Run a sync in both languages and confirm file copy behavior is unchanged.
+
+## winget Packaging Check
+
+- Keep winget manifests in a separate repository checkout such as `C:\workspace\winget-pkgs`.
+- The manifest folder for version `1.2.1` is `C:\workspace\winget-pkgs\manifests\e\Endy1328\SimpleSync\1.2.1`.
+- Validate manifests from the `winget-pkgs` checkout with:
+
+```powershell
+winget validate .\manifests\e\Endy1328\SimpleSync\1.2.1
+```
+
+- Local manifest install requires enabling `LocalManifestFiles` once from an elevated shell:
+
+```powershell
+winget settings --enable LocalManifestFiles
+```
 
 ## Config Location
 
