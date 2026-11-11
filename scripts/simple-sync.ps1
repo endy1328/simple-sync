@@ -133,8 +133,9 @@ function Invoke-SimpleSyncPair {
         return
     }
 
-    if (Test-IsSameOrChildPath -Parent $Source -Candidate $Target) {
-        Write-Host "Skip: target is same as source or inside source: $Target"
+    if ((Test-IsSameOrChildPath -Parent $Source -Candidate $Target) -or
+        (Test-IsSameOrChildPath -Parent $Target -Candidate $Source)) {
+        Write-Host "Skip: source and target are equal or contain each other: $Source -> $Target"
         return
     }
 

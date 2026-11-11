@@ -28,7 +28,7 @@ public sealed class SyncService
 
             if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(target))
             {
-                result.Messages.Add("소스 또는 타겟 경로가 비어 있어 건너뜀");
+                RecordPairFailure(pair, result, progress, "소스 또는 타겟 경로가 비어 있어 건너뜀");
                 continue;
             }
 
@@ -42,20 +42,19 @@ public sealed class SyncService
             }
             catch (Exception ex) when (IsFileSystemException(ex))
             {
-                result.FailedFiles++;
-                result.Messages.Add($"경로 해석 실패: {ex.Message}");
+                RecordPairFailure(pair, result, progress, $"경로 해석 실패: {ex.Message}");
                 continue;
             }
 
             if (!Directory.Exists(sourceRoot))
             {
-                result.Messages.Add($"소스 없음: {source}");
+                RecordPairFailure(pair, result, progress, $"소스 없음: {source}");
                 continue;
             }
 
-            if (IsSameOrChildPath(sourceRoot, targetRoot))
+            if (IsSameOrChildPath(sourceRoot, targetRoot) || IsSameOrChildPath(targetRoot, sourceRoot))
             {
-                result.Messages.Add($"타겟이 소스와 같거나 소스 내부에 있어 건너뜀: {target}");
+                RecordPairFailure(pair, result, progress, $"소스와 타겟이 같거나 서로 포함하는 경로여서 건너뜀: {source} -> {target}");
                 continue;
             }
 
@@ -65,8 +64,7 @@ public sealed class SyncService
             }
             catch (Exception ex) when (IsFileSystemException(ex))
             {
-                result.FailedFiles++;
-                result.Messages.Add($"타겟 생성 실패: {targetRoot} - {ex.Message}");
+                RecordPairFailure(pair, result, progress, $"타겟 생성 실패: {targetRoot} - {ex.Message}");
                 continue;
             }
 
@@ -99,6 +97,14 @@ public sealed class SyncService
         }
 
         return result;
+    }
+
+    private static void RecordPairFailure(SyncPair pair, SyncResult result, IProgress<SyncProgress>? progress, string message)
+    {
+        result.FailedFiles++;
+        result.Messages.Add(message);
+        var state = new SyncProgressState(pair, totalFiles: null) { FailedFiles = 1 };
+        ReportProgress(progress, state, SyncPhase.Failed, message);
     }
 
     private static void CopyDirectory(

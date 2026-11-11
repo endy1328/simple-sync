@@ -209,7 +209,39 @@ public sealed class ConfigService
             builder.AppendLine();
         }
 
-        File.WriteAllText(_configPath, builder.ToString(), Encoding.UTF8);
+        // Stage in the same directory so the final replacement stays on the same volume.
+        var configPath = Path.GetFullPath(_configPath);
+        var tempPath = Path.Combine(Path.GetDirectoryName(configPath)!, $".{Path.GetFileName(configPath)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            using (var stream = new FileStream(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                using var writer = new StreamWriter(stream, Encoding.UTF8, leaveOpen: true);
+                writer.Write(builder.ToString());
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
+
+            if (File.Exists(configPath))
+            {
+                File.Replace(tempPath, configPath, destinationBackupFileName: null);
+            }
+            else
+            {
+                File.Move(tempPath, configPath);
+            }
+        }
+        finally
+        {
+            try
+            {
+                File.Delete(tempPath);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Cleanup must not hide the original save error.
+            }
+        }
     }
 
     private static List<FilterPreset> NormalizeFilterPresets(IEnumerable<FilterPreset>? presets)

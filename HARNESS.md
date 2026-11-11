@@ -9,6 +9,10 @@ When this file changes, update `HARNESS_kor.md` in the same change.
 - .NET SDK with Windows Desktop support
 - Target framework: `net10.0-windows`
 
+## When to verify
+
+Run builds, tests, and installer version verification when program source changes. If only documentation, harness/instructions, or version metadata changes, skip these checks and installer regeneration unless explicitly requested. Review the relevant text and diff instead.
+
 ## Build
 
 ```powershell
@@ -24,6 +28,7 @@ dotnet run --project .\tests\SimpleSync.Tests\SimpleSync.Tests.csproj
 ```
 
 Expected result: all console checks print `PASS`.
+Regression checks include both directions of nested paths in copy/mirror modes, invalid pair failure reporting and continued processing, and config replacement with an open reader or a locked destination. Failed config replacement must preserve the original bytes and clean up its temporary file.
 
 ## Run
 
@@ -37,6 +42,7 @@ Debug runs use a different single-instance mutex from Release, so an installed R
 ## Publish
 
 Current release version lives in `VERSION`. `scripts\publish-installer.ps1` reads that value when generating the installer.
+For each completed app behavior change, increment PATCH for compatible fixes/improvements, MINOR for compatible features, or MAJOR for breaking changes. Before handoff, align `VERSION`, `SimpleSync.csproj`, installer metadata, README, and release notes, and add a dated version entry to `CHANGELOG.md`. Rebuild and verify the installer version when program source changes or when explicitly requested.
 
 ```powershell
 dotnet publish -c Release -r win-x64 --self-contained false
@@ -87,7 +93,7 @@ Expected result: the command prints the target repository, tag, installer path, 
 - With a filtered mirror pair, confirm target-only files outside the filter are preserved.
 - Disable one pair and confirm it is not processed.
 - Set a missing source path and confirm the app logs the issue.
-- Set a target path inside its source and confirm the app skips it.
+- Set equal source/target paths, a target inside the source, and a source inside the target in both copy and mirror modes. Confirm failure counts and failed progress, with no files copied or deleted.
 - Change the interval and confirm the value is saved to `config.toml`.
 - Change a pair mode and confirm `mode = "copy"` or `mode = "mirror"` is saved to `config.toml`.
 - Change filter rules and confirm `include`, `exclude`, `extensions`, `files`, and `include_subdirectories` are saved to `config.toml`.
@@ -104,7 +110,7 @@ Expected result: the command prints the target repository, tag, installer path, 
 ## winget Packaging Check
 
 - Keep winget manifests in a separate repository checkout such as `C:\workspace\winget-pkgs`.
-- The manifest folder for version `1.2.1` is `C:\workspace\winget-pkgs\manifests\e\Endy1328\SimpleSync\1.2.1`.
+- The existing published version `1.2.1` uses `C:\workspace\winget-pkgs\manifests\e\Endy1328\SimpleSync\1.2.1`. Prepare a new version's manifests in the separate winget repository when registering that version.
 - Validate manifests from the `winget-pkgs` checkout with:
 
 ```powershell

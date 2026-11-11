@@ -17,18 +17,20 @@ Build and maintain a simple Windows application named `simple sync` that synchro
 - Keep large-file copies safe by copying to a temporary file first and replacing the target only after copy success.
 - Treat sync filters as the pair's managed universe. Files outside the filter must not be copied or deleted, including in mirror mode.
 - Keep runtime sync progress separate from persisted `SyncPair` configuration.
-- Keep settings in `config.toml` beside the executable.
+- Keep settings in `config.toml` beside the executable. Write a unique temporary file in the same directory, flush it, then replace the config so save failures preserve existing settings.
 - Keep Debug builds on a separate single-instance mutex from Release so installed builds and `dotnet run` can be compared side by side during development.
 - Keep release version in `VERSION`, update `CHANGELOG.md`, and keep project/installer versions aligned.
+- For every completed task that changes app behavior, bump the version without waiting for a separate request: PATCH for compatible fixes and stability/performance improvements, MINOR for compatible new features, MAJOR for breaking changes. Record the version, date, and actual changes in `CHANGELOG.md` in the same task; update version metadata and release notes together.
 - Keep GitHub release notes and release helper workflow aligned with the current version.
 - Keep winget package manifests outside this repository, in a separate `winget-pkgs` fork/worktree.
 - Keep README and harness documents current after implementation changes.
 - Avoid overwriting user changes that are unrelated to the current task.
-- Use focused changes and verify with `dotnet build` and the console sync tests before handoff.
+- Use focused changes. Run `dotnet build` and the console sync tests before handoff when program source changes. If only documentation, harness/instructions, or version metadata changes, skip builds, tests, installer regeneration, and installer version verification unless explicitly requested.
 
 ## Safety Rules
 
-- Reject or skip a target path that is the same as the source or inside the source.
+- Reject equal or nested source/target paths in either direction before creating targets, copying, or deleting. Apply the same guard to the PowerShell fallback.
+- Count invalid pair paths and missing sources as failures and report failed progress for the affected pair.
 - Treat missing sources, locked files, and permission errors as reportable sync failures.
 - Continue processing other files and pairs after recoverable file system errors.
 - Retry transient file copy failures briefly before recording a final failure.

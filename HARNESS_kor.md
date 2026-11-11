@@ -9,6 +9,10 @@
 - Windows Desktop 지원이 포함된 .NET SDK
 - 대상 프레임워크: `net10.0-windows`
 
+## 검증 수행 기준
+
+프로그램 소스가 변경된 경우 빌드, 테스트와 설치 파일 버전 검증을 수행합니다. 문서, 하네스/지침, 버전 메타데이터만 변경한 경우 별도 요청이 없으면 해당 검증과 설치 파일 재생성을 생략하고 관련 문구와 diff를 확인합니다.
+
 ## 빌드
 
 ```powershell
@@ -24,6 +28,7 @@ dotnet run --project .\tests\SimpleSync.Tests\SimpleSync.Tests.csproj
 ```
 
 기대 결과: 콘솔 검증이 모두 `PASS`로 출력됩니다.
+회귀 검증에는 copy/mirror 모드의 양방향 경로 중첩 차단, 잘못된 pair의 실패 집계와 다음 pair 처리, 읽기 중이거나 잠긴 설정 파일의 교체가 포함됩니다. 설정 교체 실패 시 원본 바이트를 보존하고 임시 파일을 정리해야 합니다.
 
 ## 실행
 
@@ -37,6 +42,7 @@ Debug 실행은 Release와 다른 단일 인스턴스 Mutex를 사용하므로 �
 ## 배포
 
 현재 배포 버전은 `VERSION` 파일에 있습니다. `scripts\publish-installer.ps1`는 설치 파일을 만들 때 이 값을 읽습니다.
+앱 동작을 바꾸는 개발 작업을 완료할 때마다 호환되는 수정/개선은 PATCH, 호환되는 기능 추가는 MINOR, 호환성을 깨는 변경은 MAJOR를 올립니다. 인계 전 `VERSION`, `SimpleSync.csproj`, 설치 프로그램 메타데이터, README, 릴리스 노트를 맞추고 `CHANGELOG.md`에 날짜가 포함된 버전 항목을 기록합니다. 프로그램 소스가 변경되었거나 명시적으로 요청한 경우 설치 파일을 다시 생성해 버전을 확인합니다.
 
 ```powershell
 dotnet publish -c Release -r win-x64 --self-contained false
@@ -87,7 +93,7 @@ GitHub Release dry run:
 - 필터가 설정된 mirror 쌍에서 필터 밖 타겟 전용 파일이 보존되는지 확인합니다.
 - 한 쌍을 비활성화하고 처리되지 않는지 확인합니다.
 - 존재하지 않는 소스 경로를 설정하고 앱이 문제를 로그로 남기는지 확인합니다.
-- 타겟 경로를 소스 내부로 설정하고 앱이 건너뛰는지 확인합니다.
+- copy와 mirror 모드에서 소스와 타겟이 같은 경우, 타겟이 소스 내부인 경우, 소스가 타겟 내부인 경우를 확인합니다. 복사나 삭제 없이 실패 건수와 실패 진행 상태가 표시되는지 확인합니다.
 - 간격 값을 변경하고 `config.toml`에 저장되는지 확인합니다.
 - pair 모드를 변경하고 `config.toml`에 `mode = "copy"` 또는 `mode = "mirror"`가 저장되는지 확인합니다.
 - 필터 규칙을 변경하고 `config.toml`에 `include`, `exclude`, `extensions`, `files`, `include_subdirectories`가 저장되는지 확인합니다.
@@ -104,7 +110,7 @@ GitHub Release dry run:
 ## winget 패키징 확인
 
 - winget manifest는 `C:\workspace\winget-pkgs` 같은 별도 저장소 checkout에서 관리합니다.
-- `1.2.1` 버전 manifest 폴더는 `C:\workspace\winget-pkgs\manifests\e\Endy1328\SimpleSync\1.2.1`입니다.
+- 기존 공개 버전 `1.2.1`의 manifest 폴더는 `C:\workspace\winget-pkgs\manifests\e\Endy1328\SimpleSync\1.2.1`입니다. 새 버전 등록 시 별도 winget 저장소에서 해당 버전 manifest를 준비합니다.
 - `winget-pkgs` checkout에서 아래 명령으로 manifest를 검증합니다.
 
 ```powershell

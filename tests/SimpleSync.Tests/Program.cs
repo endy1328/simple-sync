@@ -1,5 +1,9 @@
 using SimpleSync;
 
+await Run("overlapping paths are rejected without changing files", OverlappingPathsAreRejected);
+await Run("invalid pairs report failure and allow the next pair", InvalidPairsReportFailureAndContinue);
+await Run("config save replaces the file while an existing reader stays open", ConfigSaveReplacesFileWithOpenReader);
+await Run("failed config replacement preserves settings and cleans temporary files", FailedConfigReplacementPreservesSettings);
 await Run("reports progress while copying changed files", ReportsProgressWhileCopyingChangedFiles);
 await Run("sync without progress callback still copies files", SyncWithoutProgressCallbackStillCopiesFiles);
 await Run("copy mode preserves target-only files", CopyModePreservesTargetOnlyFiles);
@@ -41,6 +45,111 @@ static async Task Run(string name, Func<Task> test)
         Console.Error.WriteLine($"FAIL {name}: {ex.Message}");
         Environment.ExitCode = 1;
     }
+}
+
+static async Task OverlappingPathsAreRejected()
+{
+    foreach (var mode in new[] { SyncModes.Mirror, SyncModes.Copy })
+    {
+        foreach (var relationship in new[] { "target-parent", "target-child", "same" })
+        {
+            using var workspace = TestWorkspace.Create();
+            var sourceFile = Path.Combine(workspace.Source, "original.txt");
+            File.WriteAllText(sourceFile, "original");
+            var target = relationship switch
+            {
+                "target-parent" => workspace.Root,
+                "target-child" => Path.Combine(workspace.Source, "nested"),
+                _ => workspace.Source
+            };
+            var events = new List<SyncProgress>();
+            var result = await new SyncService().SyncAsync(
+                [new SyncPair { Mode = mode, Source = workspace.Source, Target = target }],
+                new InlineProgress<SyncProgress>(events.Add), CancellationToken.None);
+
+            Assert(File.Exists(sourceFile) && File.ReadAllText(sourceFile) == "original", "overlapping paths must preserve the source");
+            Assert(result.FailedFiles == 1, "overlapping paths must count as a failure");
+            Assert(result.CopiedFiles == 0 && result.DeletedFiles == 0, "overlapping paths must not copy or delete files");
+            Assert(events.Last().Phase == SyncPhase.Failed, "rejected pair must report failed progress");
+            if (relationship == "target-child")
+            {
+                Assert(!Directory.Exists(target), "rejected target must not be created");
+            }
+        }
+    }
+}
+
+static async Task InvalidPairsReportFailureAndContinue()
+{
+    using var workspace = TestWorkspace.Create();
+    File.WriteAllText(Path.Combine(workspace.Source, "valid.txt"), "valid");
+    var blockedTarget = Path.Combine(workspace.Root, "blocked");
+    File.WriteAllText(blockedTarget, "keep");
+    var invalidPairs = new[]
+    {
+        new SyncPair { Source = Path.Combine(workspace.Root, "missing"), Target = workspace.Target },
+        new SyncPair { Source = "", Target = workspace.Target },
+        new SyncPair { Source = "invalid\0path", Target = workspace.Target },
+        new SyncPair { Source = workspace.Source, Target = blockedTarget }
+    };
+    var events = new List<SyncProgress>();
+    var result = await new SyncService().SyncAsync(
+        [.. invalidPairs, new SyncPair { Source = workspace.Source, Target = workspace.Target }],
+        new InlineProgress<SyncProgress>(events.Add), CancellationToken.None);
+
+    Assert(result.FailedFiles == invalidPairs.Length, "each invalid pair must count as a failure");
+    foreach (var pair in invalidPairs)
+    {
+        Assert(events.Any(item => ReferenceEquals(item.Pair, pair) && item.Phase == SyncPhase.Failed && item.FailedFiles == 1), "each invalid pair must report its own failure");
+    }
+    Assert(File.ReadAllText(Path.Combine(workspace.Target, "valid.txt")) == "valid", "a valid later pair must still run");
+    Assert(File.ReadAllText(blockedTarget) == "keep", "blocked target must be preserved");
+}
+
+static Task ConfigSaveReplacesFileWithOpenReader()
+{
+    using var workspace = TestWorkspace.Create();
+    var path = Path.Combine(workspace.Root, "config.toml");
+    var service = new ConfigService(path);
+    service.Save(new AppConfig { IntervalSeconds = 10 });
+    var original = File.ReadAllBytes(path);
+    using var reader = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
+
+    service.Save(new AppConfig { IntervalSeconds = 25, Language = "en-US" });
+
+    using var oldContents = new MemoryStream();
+    reader.CopyTo(oldContents);
+    Assert(oldContents.ToArray().SequenceEqual(original), "an existing reader must keep seeing the complete previous config");
+    Assert(service.Load().IntervalSeconds == 25 && service.Load().Language == "en-US", "new readers must see the complete updated config");
+    Assert(Directory.GetFiles(workspace.Root).Length == 1, "successful save must not leave temporary files");
+    return Task.CompletedTask;
+}
+
+static Task FailedConfigReplacementPreservesSettings()
+{
+    using var workspace = TestWorkspace.Create();
+    var path = Path.Combine(workspace.Root, "config.toml");
+    var service = new ConfigService(path);
+    service.Save(new AppConfig { IntervalSeconds = 10 });
+    var original = File.ReadAllBytes(path);
+    using (var reader = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+    {
+        var failed = false;
+        try
+        {
+            service.Save(new AppConfig { IntervalSeconds = 25 });
+        }
+        catch (IOException)
+        {
+            failed = true;
+        }
+        Assert(failed, "replacement must report that the existing file is locked");
+    }
+    Assert(File.ReadAllBytes(path).SequenceEqual(original), "failed save must preserve the original config bytes");
+    Assert(Directory.GetFiles(workspace.Root).Length == 1, "failed save must clean its temporary file");
+    service.Save(new AppConfig { IntervalSeconds = 30 });
+    Assert(service.Load().IntervalSeconds == 30, "save must recover once the lock is released");
+    return Task.CompletedTask;
 }
 
 static async Task ReportsProgressWhileCopyingChangedFiles()
@@ -560,6 +669,11 @@ static void Assert(bool condition, string message)
     {
         throw new InvalidOperationException(message);
     }
+}
+
+sealed class InlineProgress<T>(Action<T> callback) : IProgress<T>
+{
+    public void Report(T value) => callback(value);
 }
 
 sealed class TestWorkspace : IDisposable

@@ -2,7 +2,7 @@
 
 `simple sync`는 특정 소스 디렉터리에서 타겟 디렉터리로 변경된 파일을 단방향 복사해 주는 간단한 Windows 데스크톱 앱입니다.
 
-현재 버전은 `1.2.1`입니다. 버전 변경 이력은 `CHANGELOG.md`에 기록하고, 현재 배포 버전은 `VERSION` 파일에 저장합니다.
+현재 버전은 `1.2.2`입니다. 버전 변경 이력은 `CHANGELOG.md`에 기록하고, 현재 배포 버전은 `VERSION` 파일에 저장합니다.
 
 ![simple sync - Fluent Light](https://private-user-images.githubusercontent.com/31756669/595345787-bb712b28-88a8-4d24-9b1e-af2e3c5add33.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzkyNjkwNDcsIm5iZiI6MTc3OTI2ODc0NywicGF0aCI6Ii8zMTc1NjY2OS81OTUzNDU3ODctYmI3MTJiMjgtODhhOC00ZDI0LTliMWUtYWYyZTNjNWFkZDMzLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNjA1MjAlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjYwNTIwVDA5MTkwN1omWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWE3M2QxYTk5MzZkMzBjYTJlMzkyYjU2ZTcwNzVhMmYzOTZhYjY1MWJmOTIzZThmZjA1OWY3Njc5ODI4YmZiNzkmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0JnJlc3BvbnNlLWNvbnRlbnQtdHlwZT1pbWFnZSUyRnBuZyJ9.CP1hX1JQDmpXKxCyWGnHmnUhGCigvdiDJbXIYINDsWo)
 
@@ -175,7 +175,7 @@ Release 생성 전 확인:
 ```
 
 기본값은 `VERSION` 파일의 버전을 읽어 `v버전` 태그를 만들고, `dist\simple-sync-setup.exe`와 `release-notes-버전.md`를 사용합니다.
-예를 들어 `VERSION`이 `1.2.1`이면 `v1.2.1` 태그와 `release-notes-1.2.1.md`를 사용합니다.
+예를 들어 `VERSION`이 `1.2.2`이면 `v1.2.2` 태그와 `release-notes-1.2.2.md`를 사용합니다.
 
 다른 저장소, 브랜치, 파일을 지정해야 하는 경우:
 
@@ -183,9 +183,9 @@ Release 생성 전 확인:
 .\scripts\create-github-release.ps1 `
   -Repository "endy1328/simple-sync" `
   -Target "main" `
-  -Version "1.2.1" `
+  -Version "1.2.2" `
   -InstallerPath ".\dist\simple-sync-setup.exe" `
-  -NotesPath ".\release-notes-1.2.1.md"
+  -NotesPath ".\release-notes-1.2.2.md"
 ```
 
 스크립트는 설치 파일의 SHA256도 출력합니다. 이 값은 winget manifest의 `InstallerSha256`에 사용합니다.
@@ -200,7 +200,7 @@ winget manifest는 이 저장소 안에 만들지 않고, `microsoft/winget-pkgs
 C:\workspace\winget-pkgs
 ```
 
-`simple sync` 1.2.1 manifest 위치:
+기존 공개 버전인 `simple sync` 1.2.1 manifest 위치입니다. 새 버전 등록 시 별도 winget 저장소에서 해당 버전 manifest를 준비합니다.
 
 ```text
 C:\workspace\winget-pkgs
@@ -233,6 +233,7 @@ winget install --manifest .\manifests\e\Endy1328\SimpleSync\1.2.1
 ## 설정 파일
 
 `config.toml`은 `simple sync.exe`와 같은 폴더에 저장됩니다. 앱은 시작 시 이 파일을 읽고, 화면에서 설정이 변경되거나 앱이 종료될 때 최신 값을 저장합니다.
+설정은 같은 폴더의 고유한 임시 파일에 먼저 기록하고 디스크에 반영한 뒤 교체합니다. 쓰기 또는 교체가 실패하면 기존 설정을 보존하고 오류를 알립니다.
 
 저장소에는 개인 경로가 들어가는 실제 `config.toml` 대신 `config.example.toml` 예제 파일만 포함합니다.
 
@@ -318,7 +319,8 @@ include_subdirectories = true
 - Activity 완료 로그에는 복사, 유지, 삭제, 제외, 실패 개수를 표시합니다.
 - 복사 후 타겟 파일의 마지막 수정 시간을 소스 파일과 맞춥니다.
 - `Mirror source` 모드에서도 소스 탐색이나 복사 중 실패가 있으면 안전을 위해 삭제 단계는 건너뜁니다.
-- 타겟 경로가 소스와 같거나 소스 내부인 경우 재귀 복사를 막기 위해 건너뜁니다.
+- 소스와 타겟이 같거나 어느 한쪽이 다른 쪽 내부인 경우 복사와 삭제를 시작하지 않고 실패로 처리합니다. PowerShell fallback에도 같은 경로 검사를 적용합니다.
+- 소스 누락, 빈 경로, 경로 해석 오류, 타겟 생성 오류는 해당 쌍의 실패 건수와 실패 진행 상태로 보고하며, 다음 동기화 쌍은 계속 처리합니다.
 - 파일 시스템 오류는 앱 로그에 표시되며, 가능한 경우 다른 파일과 다른 동기화 쌍 처리는 계속합니다.
 - 앱 종료 시 자동 실행 타이머를 멈추고 진행 중인 동기화에 취소 신호를 보냅니다.
 
