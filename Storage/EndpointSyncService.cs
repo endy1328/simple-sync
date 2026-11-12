@@ -53,12 +53,21 @@ public sealed class EndpointSyncService(string? stateDirectory = null)
             var state = LoadState(statePath);
             var nextState = new Dictionary<string, ExportState>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var directory in sources.Values.Where(entry => entry.IsDirectory).OrderBy(entry => entry.RelativePath.Count(c => c == '/')))
-                if (!targets.ContainsKey(directory.RelativePath))
+            var directoryConcurrency = target is IConcurrentDirectoryEndpoint parallelDirectories
+                ? Math.Clamp(parallelDirectories.MaxConcurrentDirectories, 1, 4) : 1;
+            var directoryLevels = sources.Values.Where(entry => entry.IsDirectory && !targets.ContainsKey(entry.RelativePath))
+                .GroupBy(entry => entry.RelativePath.Count(c => c == '/')).OrderBy(level => level.Key);
+            foreach (var level in directoryLevels)
+            {
+                // Join each level before creating children, uploading files or handling a failure.
+                await Parallel.ForEachAsync(level,
+                    new ParallelOptions { MaxDegreeOfParallelism = directoryConcurrency, CancellationToken = cancellationToken },
+                    async (directory, token) =>
                 {
                     Report(SyncPhase.Preparing, directory.RelativePath);
-                    await target.EnsureDirectoryAsync(directory.RelativePath, cancellationToken);
-                }
+                    await target.EnsureDirectoryAsync(directory.RelativePath, token);
+                });
+            }
 
             async Task TransferAsync(StorageEntry entry)
             {
@@ -146,23 +155,29 @@ public sealed class EndpointSyncService(string? stateDirectory = null)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 if (sourceFiles.Any(entry => entry.Md5 is null)) SaveState(statePath, nextState);
-                if (SyncModes.Normalize(pair.Mode) == SyncModes.Mirror)
+                List<StorageEntry> deletionCandidates = SyncModes.Normalize(pair.Mode) == SyncModes.Mirror
+                    ? targets.Values.Where(entry => !sources.ContainsKey(entry.RelativePath) && (entry.IsDirectory
+                        ? filter.ShouldDeleteTargetDirectory(entry.RelativePath) : filter.ShouldDeleteTargetFile(entry.RelativePath))).ToList()
+                    : [];
+                if (deletionCandidates.Count > 0)
                 {
                     // A valid initial snapshot is insufficient if the source changes while transferring.
-                    var latestSources = Inventory(await source.ListAsync(filter, cancellationToken));
+                    var latestSources = Inventory(source is IFreshInventoryEndpoint fresh
+                        ? await fresh.ListFreshAsync(filter, cancellationToken)
+                        : await source.ListAsync(filter, cancellationToken));
                     if (sources.Count != latestSources.Count || sources.Any(item =>
                         !latestSources.TryGetValue(item.Key, out var current) ||
                         current.Id != item.Value.Id || current.IsDirectory != item.Value.IsDirectory ||
                         current.Version != item.Value.Version || !string.Equals(current.Md5, item.Value.Md5, StringComparison.OrdinalIgnoreCase)))
                         throw new IOException("Source changed during synchronization; mirror deletion skipped. / 소스 변경으로 미러링 삭제 생략");
-                    foreach (var entry in targets.Values.Where(entry => !entry.IsDirectory && !sources.ContainsKey(entry.RelativePath) && filter.ShouldDeleteTargetFile(entry.RelativePath)))
+                    foreach (var entry in deletionCandidates.Where(entry => !entry.IsDirectory))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                         Report(SyncPhase.Deleting, entry.RelativePath);
                         await target.DeleteAsync(entry, cancellationToken);
                         result.DeletedFiles++;
                     }
-                    foreach (var entry in targets.Values.Where(entry => entry.IsDirectory && !sources.ContainsKey(entry.RelativePath) && filter.ShouldDeleteTargetDirectory(entry.RelativePath))
+                    foreach (var entry in deletionCandidates.Where(entry => entry.IsDirectory)
                         .OrderByDescending(entry => entry.RelativePath.Count(c => c == '/')))
                         await target.DeleteAsync(entry, cancellationToken);
                 }

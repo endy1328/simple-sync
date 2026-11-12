@@ -35,6 +35,7 @@ public sealed class GoogleAccountsDialog : Form
     private readonly Button _import;
     private readonly Button _connect;
     private readonly Button _remove;
+    private readonly Button _advanced;
     private bool _busy;
     private bool _closeRequested;
 
@@ -44,8 +45,13 @@ public sealed class GoogleAccountsDialog : Form
         _ko = localization.LanguageCode == "ko-KR";
         DriveDialogLayout.Initialize(this, T("Google 계정 관리", "Google accounts"), new Size(760, 560));
         _import = DriveDialogLayout.Button(T("OAuth 설정 가져오기", "Import OAuth settings"));
-        _connect = DriveDialogLayout.Button(T("계정 연결 / 재로그인", "Connect / sign in again"));
+        _import.Visible = false;
+        _import.Name = "ImportOAuthSettings";
+        _connect = DriveDialogLayout.Button(T("Google 계정 연결", "Connect Google account"));
+        _connect.Name = "ConnectGoogleAccount";
         _remove = DriveDialogLayout.Button(T("연결 해제", "Disconnect"));
+        _advanced = DriveDialogLayout.Button(T("고급 설정", "Advanced settings"));
+        _advanced.Name = "AdvancedGoogleSettings";
 
         var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(16), ColumnCount = 1, RowCount = 5 };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -55,12 +61,12 @@ public sealed class GoogleAccountsDialog : Form
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var introduction = DriveDialogLayout.Label(T(
-            "개인 Google 계정을 연결하세요. 처음에는 Google Cloud에서 발급한 데스크톱 앱 OAuth JSON 설정이 필요합니다.\n브라우저에서 로그인하고 권한을 허용하면 앱으로 돌아옵니다.",
-            "Connect personal Google accounts. First import a Desktop app OAuth JSON file from Google Cloud.\nSign in and grant access in your browser, then return to this app."));
+            "Google 계정 연결을 누르고 브라우저에서 개인 Google 계정을 선택한 뒤 Drive 접근을 허용하세요.\n연결된 계정으로 파일을 업로드하거나 다운로드할 수 있습니다. 여러 계정은 각각 연결하세요.",
+            "Connect your Google account, choose a personal account in your browser and allow Drive access.\nUpload and download files with connected accounts. Connect each additional account separately."));
         introduction.MaximumSize = new Size(690, 0);
         root.Controls.Add(introduction, 0, 0);
         var actions = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Fill, WrapContents = true };
-        actions.Controls.AddRange([_import, _connect, _remove]);
+        actions.Controls.AddRange([_connect, _remove]);
         root.Controls.Add(actions, 0, 1);
         root.Controls.Add(_accounts, 0, 2);
         root.Controls.Add(_status, 0, 3);
@@ -68,6 +74,9 @@ public sealed class GoogleAccountsDialog : Form
         close.DialogResult = DialogResult.Cancel;
         var footer = new FlowLayoutPanel { AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
         footer.Controls.Add(close);
+        footer.Controls.Add(_advanced);
+        footer.Controls.Add(_import);
+        _advanced.Click += (_, _) => _import.Visible = !_import.Visible;
         root.Controls.Add(footer, 0, 4);
         Controls.Add(root);
         CancelButton = close;
@@ -102,15 +111,17 @@ public sealed class GoogleAccountsDialog : Form
         }
         if (_accounts.SelectedIndex < 0 && _accounts.Items.Count > 0) _accounts.SelectedIndex = 0;
         _status.Text = _service.HasClientConfiguration
-            ? T("OAuth 설정이 준비되었습니다. 연결된 계정은 동기화 쌍에서 선택할 수 있습니다.",
-                "OAuth settings are ready. Choose a connected account in each sync pair.")
-            : T("먼저 데스크톱 앱 OAuth JSON 설정을 가져오세요.", "Import a Desktop app OAuth JSON file first.");
+            ? T("계정을 연결한 뒤 동기화 쌍의 연결 설정에서 선택하세요.",
+                "Connect an account, then choose it in your sync pair's connection settings.")
+            : T("이 빌드에는 Google 로그인 설정이 포함되지 않았습니다. 배포자에게 문의하거나 고급 설정을 사용하세요.",
+                "Google sign-in is not configured in this build. Contact the distributor or use advanced settings.");
         UpdateButtons();
     }
 
     private void UpdateButtons()
     {
         _import.Enabled = !_busy;
+        _advanced.Enabled = !_busy;
         _connect.Enabled = !_busy && _service.HasClientConfiguration;
         _remove.Enabled = !_busy && _accounts.SelectedItem is GoogleAccount;
         _accounts.Enabled = !_busy;

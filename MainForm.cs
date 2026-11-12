@@ -69,7 +69,9 @@ public sealed class MainForm : Form
     [DllImport("user32.dll")]
     private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
-    public MainForm()
+    public MainForm() : this(Path.Combine(AppContext.BaseDirectory, "config.toml")) { }
+
+    public MainForm(string configPath)
     {
         Text = FormatWindowTitle(_isDebugBuild, _localization);
         Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? Icon;
@@ -78,7 +80,7 @@ public sealed class MainForm : Form
         Size = new Size(1720, 1120);
         StartPosition = FormStartPosition.CenterScreen;
 
-        _configService = new ConfigService(Path.Combine(AppContext.BaseDirectory, "config.toml"));
+        _configService = new ConfigService(configPath);
 
         BuildLayout();
         LoadConfig();
@@ -140,10 +142,14 @@ public sealed class MainForm : Form
         };
 
         _autoSyncCheck.Text = _localization.Text("toolbar.auto");
-        _autoSyncCheck.Checked = true;
         _autoSyncCheck.AutoSize = true;
         _autoSyncCheck.Margin = new Padding(4, 6, 16, 0);
-        _autoSyncCheck.CheckedChanged += (_, _) => ConfigureTimer();
+        _autoSyncCheck.CheckedChanged += (_, _) =>
+        {
+            if (_isLoadingConfig) return;
+            ConfigureTimer();
+            SaveConfig();
+        };
 
         _nowButton.Text = _localization.Text("toolbar.sync_now");
         RegisterButton(_nowButton, primary: true);
@@ -753,6 +759,7 @@ public sealed class MainForm : Form
             _localization.SetLanguage(config.Language);
             _filterPresets = config.FilterPresets.Count == 0 ? FilterPreset.CreateDefaults(_localization) : config.FilterPresets;
             _intervalInput.Value = Math.Clamp(config.IntervalSeconds, 1, 86_400);
+            _autoSyncCheck.Checked = config.AutoSync;
             Size = new Size(
                 Math.Max(MinimumSize.Width, config.WindowWidth),
                 Math.Max(MinimumSize.Height, config.WindowHeight));
@@ -802,6 +809,7 @@ public sealed class MainForm : Form
         _configService.Save(new AppConfig
         {
             IntervalSeconds = (int)_intervalInput.Value,
+            AutoSync = _autoSyncCheck.Checked,
             Skin = _currentSkin.Key,
             Language = _localization.LanguageCode,
             WindowWidth = WindowState == FormWindowState.Normal ? Width : RestoreBounds.Width,

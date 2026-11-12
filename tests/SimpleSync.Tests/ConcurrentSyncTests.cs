@@ -7,6 +7,12 @@ public static class ConcurrentSyncTests
     public static async Task RunAsync()
     {
         await ExistingFoldersAreNotPrepared();
+        await BoundedDirectoryPreparation(8, 4);
+        await BoundedDirectoryPreparation(2, 2);
+        await BoundedDirectoryPreparation(1, 1);
+        await BoundedDirectoryPreparation(4, 1, capable: false);
+        await DirectoryFailureAndCancellationJoinWorkers(cancel: false);
+        await DirectoryFailureAndCancellationJoinWorkers(cancel: true);
         await BoundedTransfers(4, 4);
         await BoundedTransfers(8, 4);
         await BoundedTransfers(4, 2, sourceLimit: 2);
@@ -27,6 +33,76 @@ public static class ConcurrentSyncTests
         var target = new Endpoint([new("folder", "folder", true)]);
         var result = await Run(source, target);
         Check(result.FailedFiles == 0 && target.Ensures == 0, "existing folders must not call EnsureDirectory");
+    }
+
+    private static async Task BoundedDirectoryPreparation(int limit, int expected, bool capable = true)
+    {
+        var full = Gate(); var release = Gate();
+        var completed = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>();
+        var active = 0; var maximum = 0; var started = 0; var writes = 0;
+        Endpoint target = capable ? new DirectoryEndpoint([], limit) : new Endpoint([]);
+        target.Prepare = async (path, token) =>
+        {
+            var current = Interlocked.Increment(ref active);
+            lock (target) maximum = Math.Max(maximum, current);
+            if (path.Contains('/')) Check(completed.Count >= 8, "all parent folders must finish before the child level");
+            if (Interlocked.Increment(ref started) == expected) full.TrySetResult();
+            await release.Task.WaitAsync(token);
+            completed[path] = true;
+            Interlocked.Decrement(ref active);
+        };
+        target.Write = (_, _) =>
+        {
+            Check(completed.Count == 16 && active == 0, "all folders must finish before any upload");
+            Interlocked.Increment(ref writes);
+            return Task.CompletedTask;
+        };
+        var folders = Enumerable.Range(0, 8).SelectMany(i => new[] {
+            new StorageEntry("p" + i, "folder" + i, true), new StorageEntry("c" + i, "folder" + i + "/child", true) });
+        var run = Run(new Endpoint(folders.Concat(Files(1)).ToArray()), target);
+        try
+        {
+            await full.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Check(active == expected && maximum == expected && writes == 0, "folder workers obey the target limit and cap four");
+        }
+        finally { release.TrySetResult(); }
+        var result = await run;
+        Check(result.FailedFiles == 0 && result.CopiedFiles == 1 && maximum <= expected, "bounded folder preparation finishes safely");
+    }
+
+    private static async Task DirectoryFailureAndCancellationJoinWorkers(bool cancel)
+    {
+        var secondEntered = Gate(); var held = Gate(); var failed = Gate();
+        using var cancellation = new CancellationTokenSource();
+        var target = new DirectoryEndpoint([new("extra", "extra.txt", false)], 2);
+        var writes = 0;
+        target.Prepare = async (path, _) =>
+        {
+            if (path == "a")
+            {
+                await secondEntered.Task;
+                if (!cancel) { failed.TrySetResult(); throw new IOException("folder preparation failed"); }
+                await held.Task;
+            }
+            else { secondEntered.TrySetResult(); await held.Task; }
+        };
+        target.Write = (_, _) => { Interlocked.Increment(ref writes); return Task.CompletedTask; };
+        var source = new Endpoint(new[] { new StorageEntry("a", "a", true), new StorageEntry("b", "b", true) }.Concat(Files(1)).ToArray());
+        var run = Run(source, target, cancellation.Token);
+        try
+        {
+            await (cancel ? secondEntered.Task : failed.Task).WaitAsync(TimeSpan.FromSeconds(5));
+            if (cancel) cancellation.Cancel();
+            Check(!run.IsCompleted && writes == 0 && target.Deletes == 0, "failed or cancelled folder preparation must join active workers before returning");
+        }
+        finally { held.TrySetResult(); }
+        if (cancel)
+        {
+            try { await run; throw new Exception("folder cancellation must propagate"); }
+            catch (OperationCanceledException) { }
+        }
+        else Check((await run).FailedFiles > 0, "folder preparation failure must be reported");
+        Check(writes == 0 && target.Deletes == 0 && source.Lists == 1, "folder failure or cancellation must prevent uploads and mirror deletion");
     }
 
     private static async Task MixedTransfersRespectBarriers()
@@ -208,12 +284,15 @@ public static class ConcurrentSyncTests
         public int Ensures, Deletes, Lists;
         public Func<string, CancellationToken, Task>? Write;
         public Action<string>? Ensure;
+        public Func<string, CancellationToken, Task>? Prepare;
         public Task<IReadOnlyList<StorageEntry>> ListAsync(SyncFilter filter, CancellationToken token) { Interlocked.Increment(ref Lists); return Task.FromResult(entries); }
         public async Task ReadAsync(StorageEntry entry, Stream destination, CancellationToken token) => await destination.WriteAsync(Encoding.UTF8.GetBytes("payload"), token);
         public Task WriteAsync(string path, StorageEntry? existing, Stream source, CancellationToken token) => Write?.Invoke(path, token) ?? Task.CompletedTask;
-        public Task EnsureDirectoryAsync(string path, CancellationToken token) { Interlocked.Increment(ref Ensures); Ensure?.Invoke(path); return Task.CompletedTask; }
+        public Task EnsureDirectoryAsync(string path, CancellationToken token) { Interlocked.Increment(ref Ensures); Ensure?.Invoke(path); return Prepare?.Invoke(path, token) ?? Task.CompletedTask; }
         public Task DeleteAsync(StorageEntry entry, CancellationToken token) { Interlocked.Increment(ref Deletes); return Task.CompletedTask; }
     }
     private sealed class ConcurrentEndpoint(IReadOnlyList<StorageEntry> entries, int limit = 4) : Endpoint(entries), IConcurrentTransferEndpoint
     { public int MaxConcurrentTransfers => limit; }
+    private sealed class DirectoryEndpoint(IReadOnlyList<StorageEntry> entries, int limit) : Endpoint(entries), IConcurrentDirectoryEndpoint
+    { public int MaxConcurrentDirectories => limit; }
 }

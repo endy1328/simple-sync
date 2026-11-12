@@ -37,6 +37,12 @@ public sealed class SyncFilter
         _files.Count > 0 ||
         !_includeSubdirectories;
 
+    internal string CacheKey => System.Text.Json.JsonSerializer.Serialize(new {
+        _includeSubdirectories, _includePatterns, _excludePatterns,
+        Extensions = _extensions.OrderBy(value => value, StringComparer.OrdinalIgnoreCase),
+        Files = _files.OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+    });
+
     public string Summary
     {
         get

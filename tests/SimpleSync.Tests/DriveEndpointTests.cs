@@ -7,6 +7,37 @@ using SimpleSync;
 
 public static class DriveEndpointTests
 {
+    private static async Task IndependentFolderCreatesOverlap()
+    {
+        using var server = new FakeDrive();
+        using var gate = new FolderCreationBarrier(server);
+        using var http = new HttpClient(gate, disposeHandler: false);
+        var endpoint = new GoogleDriveEndpoint(http, "root");
+        await endpoint.ListAsync(Filter(), Token);
+        var creates = Task.WhenAll(Enumerable.Range(0, 4).Select(i => endpoint.EnsureDirectoryAsync("folder" + i, Token)));
+        try { await gate.FourStarted.Task.WaitAsync(TimeSpan.FromSeconds(3)); }
+        finally { gate.Release.TrySetResult(); await creates; }
+        Assert(server.FolderRequests == 4, "independent folders must each be created exactly once");
+        await Task.WhenAll(Enumerable.Range(0, 12).Select(i => endpoint.EnsureDirectoryAsync("shared/child" + i % 3, Token)));
+        Assert(server.FolderRequests == 8, "parallel paths sharing a parent must not create duplicate parents or children");
+    }
+
+    private sealed class FolderCreationBarrier(HttpMessageHandler inner) : DelegatingHandler(inner)
+    {
+        public readonly TaskCompletionSource FourStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public readonly TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _started;
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            if (request.Method == HttpMethod.Post && request.RequestUri!.AbsolutePath == "/drive/v3/files")
+            {
+                if (Interlocked.Increment(ref _started) == 4) FourStarted.TrySetResult();
+                await Release.Task.WaitAsync(token);
+            }
+            return await base.SendAsync(request, token);
+        }
+    }
+
     private static readonly CancellationToken Token = CancellationToken.None;
     private static SyncFilter Filter(SyncPair? pair = null) => SyncFilter.FromPair(pair ?? new SyncPair());
     private static void Assert(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
@@ -32,6 +63,7 @@ public static class DriveEndpointTests
 
     public static async Task RunAsync()
     {
+        await IndependentFolderCreatesOverlap();
         using (var server = new FakeDrive())
         {
             var endpoint = new GoogleDriveEndpoint(server.Client, "root");
@@ -278,8 +310,14 @@ public static class DriveEndpointTests
         private int _nextId;
         private readonly SemaphoreSlim _requestGate = new(1, 1);
         public int MetadataRequests, ChildRequests, IdRequests, FolderRequests, MultipartUploads, SessionRequests;
+        public List<(string Id, bool Removed)> ChangeLog = [];
+        public int ChangeRequests, TokenRequests;
+        public bool InvalidChangeToken, BrokenChangePage, MalformedChangeJson, RepeatChangePage;
+        public string? ChangeBodyOverride;
+        public int ChangePageSize = int.MaxValue;
+        public void Changed(string id, bool removed = false) => ChangeLog.Add((id, removed));
         public string Counts() => $"metadata={MetadataRequests}, children={ChildRequests}, ids={IdRequests}, folders={FolderRequests}, multipart={MultipartUploads}, sessions={SessionRequests}, chunks={UploadChunks}, total={Urls.Count}";
-        public void ResetCounts() { MetadataRequests = ChildRequests = IdRequests = FolderRequests = MultipartUploads = SessionRequests = UploadChunks = 0; Urls.Clear(); }
+        public void ResetCounts() { MetadataRequests = ChildRequests = IdRequests = FolderRequests = MultipartUploads = SessionRequests = UploadChunks = ChangeRequests = TokenRequests = 0; Urls.Clear(); }
         private Remote? _upload;
         private bool _lostResponse;
         public FakeDrive() => Client = new HttpClient(this, disposeHandler: false);
@@ -304,6 +342,27 @@ public static class DriveEndpointTests
             }
             var uri = request.RequestUri!; Urls.Add(uri.AbsoluteUri);
             var path = uri.AbsolutePath; var query = Uri.UnescapeDataString(uri.Query);
+            if (path.EndsWith("/changes/startPageToken"))
+            {
+                TokenRequests++;
+                return Json(new { startPageToken = ChangeLog.Count.ToString() });
+            }
+            if (path.EndsWith("/changes"))
+            {
+                ChangeRequests++;
+                if (InvalidChangeToken) { InvalidChangeToken = false; return new(HttpStatusCode.Gone); }
+                if (BrokenChangePage) return Json(new { changes = Array.Empty<object>() });
+                if (ChangeBodyOverride is not null) return new(HttpStatusCode.OK) { Content = new StringContent(ChangeBodyOverride) };
+                if (MalformedChangeJson) return new(HttpStatusCode.OK) { Content = new StringContent("invalid-json") };
+                var token = int.Parse(Regex.Match(query, @"pageToken=(\d+)").Groups[1].Value);
+                var changes = ChangeLog.Skip(token).Take(ChangePageSize).Select(change => new {
+                    fileId = change.Id, removed = change.Removed,
+                    file = !change.Removed && Files.TryGetValue(change.Id, out var file) ? file.Json() : null
+                }).ToArray();
+                if (RepeatChangePage) return Json(new { nextPageToken = token.ToString(), changes });
+                if (token + changes.Length < ChangeLog.Count) return Json(new { nextPageToken = (token + changes.Length).ToString(), changes });
+                return Json(new { newStartPageToken = ChangeLog.Count.ToString(), changes });
+            }
             if (path.EndsWith("/generateIds"))
             {
                 IdRequests++; GeneratedIds++;
@@ -362,7 +421,7 @@ public static class DriveEndpointTests
                     if (Files.ContainsKey(id)) return new(HttpStatusCode.Conflict);
                     upload = new(id, body.GetProperty("name").GetString()!, body.GetProperty("mimeType").GetString()!, body.GetProperty("parents")[0].GetString()!, []);
                 }
-                upload.Content = bytes; Files[upload.Id] = upload;
+                upload.Content = bytes; Files[upload.Id] = upload; Changed(upload.Id);
                 if (LoseFirstUploadResponse && !_lostResponse) { _lostResponse = true; throw new HttpRequestException("simulated multipart response loss"); }
                 if (OmitUploadMetadata) return Json(new { });
                 if (CorruptUploadResponse) return Json(new Remote(upload.Id, upload.Name, upload.Mime, upload.Parent, [4,5]).Json());
@@ -383,7 +442,7 @@ public static class DriveEndpointTests
                 var response = Json(new { }); response.Headers.Location = new Uri("https://www.googleapis.com/session"); return response;
             }
             if (request.Method == HttpMethod.Patch) { PatchCount++; return Json(new { }); }
-            if (request.Method == HttpMethod.Delete) { var id = path.Split('/').Last(); Deleted.Add(id); Files.Remove(id); return new(HttpStatusCode.NoContent); }
+            if (request.Method == HttpMethod.Delete) { var id = path.Split('/').Last(); Deleted.Add(id); Files.Remove(id); Changed(id, removed: true); return new(HttpStatusCode.NoContent); }
             if (path.EndsWith("/files") && request.Method == HttpMethod.Get)
             {
                 ChildRequests++;

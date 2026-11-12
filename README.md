@@ -2,7 +2,7 @@
 
 `simple sync`는 로컬·네트워크 폴더 또는 개인 Google Drive의 내 드라이브 사이에서 변경된 파일을 단방향 복사하는 Windows 데스크톱 앱입니다.
 
-현재 버전은 `1.5.1`입니다. 버전 변경 이력은 `CHANGELOG.md`에 기록하고, 현재 배포 버전은 `VERSION` 파일에 저장합니다.
+현재 버전은 `1.6.3`입니다. 버전 변경 이력은 `CHANGELOG.md`에 기록하고, 현재 배포 버전은 `VERSION` 파일에 저장합니다.
 
 ![simple sync - Fluent Light](https://private-user-images.githubusercontent.com/31756669/595345787-bb712b28-88a8-4d24-9b1e-af2e3c5add33.png?jwt=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJnaXRodWIuY29tIiwiYXVkIjoicmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbSIsImtleSI6ImtleTUiLCJleHAiOjE3NzkyNjkwNDcsIm5iZiI6MTc3OTI2ODc0NywicGF0aCI6Ii8zMTc1NjY2OS81OTUzNDU3ODctYmI3MTJiMjgtODhhOC00ZDI0LTliMWUtYWYyZTNjNWFkZDMzLnBuZz9YLUFtei1BbGdvcml0aG09QVdTNC1ITUFDLVNIQTI1NiZYLUFtei1DcmVkZW50aWFsPUFLSUFWQ09EWUxTQTUzUFFLNFpBJTJGMjAyNjA1MjAlMkZ1cy1lYXN0LTElMkZzMyUyRmF3czRfcmVxdWVzdCZYLUFtei1EYXRlPTIwMjYwNTIwVDA5MTkwN1omWC1BbXotRXhwaXJlcz0zMDAmWC1BbXotU2lnbmF0dXJlPWE3M2QxYTk5MzZkMzBjYTJlMzkyYjU2ZTcwNzVhMmYzOTZhYjY1MWJmOTIzZThmZjA1OWY3Njc5ODI4YmZiNzkmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0JnJlc3BvbnNlLWNvbnRlbnQtdHlwZT1pbWFnZSUyRnBuZyJ9.CP1hX1JQDmpXKxCyWGnHmnUhGCigvdiDJbXIYINDsWo)
 
@@ -28,6 +28,7 @@
 - `설정 → 언어` 메뉴에서 `한국어` 또는 `English`를 선택할 수 있습니다.
 - `Sync pairs`와 `Activity` 사이의 구분선을 드래그해 영역 높이를 조절할 수 있습니다.
 - 마지막으로 종료한 창 크기를 기억하고 다음 실행 때 같은 크기로 엽니다.
+- ‘자동’ 체크 상태를 변경 즉시 저장하고, 다음 실행에도 자동 동기화의 켜짐·꺼짐 상태를 유지합니다.
 - 하단 상태 영역에 현재 프로그램 버전을 표시합니다.
 - 실행 파일 옆의 `config.toml`에서 설정을 불러오고, 화면에서 바뀐 값을 다시 저장합니다.
 - 중복 실행을 막아 같은 앱이 여러 개 떠서 파일을 잠그는 상황을 줄입니다.
@@ -38,17 +39,27 @@
 
 개인 Google 계정을 여러 개 연결할 수 있습니다. 지원 방향은 `PC → Google Drive`와 `Google Drive → PC`이며, 계정 간 Drive 전송과 조직 공유 드라이브는 지원하지 않습니다.
 
-### 최초 OAuth 설정
+### 계정 연결
 
-1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트를 만들거나 선택하고 **Google Drive API**를 활성화합니다.
-2. Google Auth Platform에서 동의 화면을 설정합니다. 개인 계정용 앱은 외부 사용자 대상으로 설정하고, 개발 중에는 사용할 계정을 테스트 사용자로 등록합니다.
-3. OAuth 클라이언트를 **Desktop app** 유형으로 생성하고 클라이언트 JSON을 다운로드합니다.
-4. 앱의 **설정 → 구글 계정 → OAuth JSON 가져오기**에서 해당 파일을 선택합니다.
-5. **계정 연결 / 다시 연결**을 눌러 기본 브라우저에서 사용할 계정을 선택하고 권한을 승인합니다. 여러 계정은 각각 연결합니다.
+1. **설정 → 구글 계정 → Google 계정 연결**을 누릅니다.
+2. 기본 브라우저에서 사용할 개인 Google 계정을 선택하고 Drive 접근 권한을 승인합니다.
+3. 앱으로 돌아와 동기화 쌍의 **연결 설정**에서 계정과 폴더를 선택합니다. 여러 계정은 각각 연결합니다.
+
+일반 사용자는 Google Cloud 프로젝트를 생성하거나 OAuth JSON을 가져올 필요가 없습니다. 기존에 연결한 계정과 인증 설정은 그대로 사용합니다. 사용자 지정 OAuth 클라이언트를 사용하려면 **고급 설정 → OAuth 설정 가져오기**를 사용합니다. 연결된 계정이 있으면 다른 클라이언트로 교체하기 전에 연결을 해제해야 합니다.
+
+### 배포자의 Google 로그인 설정 (최초 한 번)
+
+배포자는 [Google Cloud Console](https://console.cloud.google.com/)에서 Google Drive API를 활성화하고 외부 사용자용 동의 화면과 **Desktop app** OAuth 클라이언트를 준비합니다. 다운로드한 JSON을 저장소 루트의 `google-oauth-client.local.json`에 저장하면 빌드 시 앱 리소스에 자동 포함됩니다. 다른 위치는 `dotnet build -p:GoogleOAuthClientConfigPath="C:\경로\client.json"`로 지정할 수 있습니다. 이 파일은 Git에서 제외됩니다. OAuth 데스크톱 클라이언트 설정만 포함하며 사용자 계정 토큰은 포함하지 않습니다.
+
+설정 없이 개발 빌드는 가능하지만 Google 계정 연결을 사용할 수 없습니다. 설정 없는 배포를 막기 위해 `dotnet publish`는 해당 파일이 없으면 실패합니다. 테스트 프로젝트를 사용할 때도 같은 MSBuild 속성으로 배포자 설정 경로를 전달할 수 있습니다.
+
+배포된 기본 설정은 첫 실행 시 Windows 사용자별 암호화 저장소에 보관합니다. 이후 앱의 기본 클라이언트가 바뀌어도 기존 인증 토큰은 처음 승인받은 클라이언트를 유지합니다. 자체 클라이언트로 이전하려면 기존 계정 연결을 해제하고 고급 설정으로 교체한 뒤 다시 연결합니다.
 
 앱은 기존 폴더 전체 조회·전송·영구 삭제에 필요한 `drive` 권한과 계정 식별용 `openid email`을 요청합니다. `drive`는 제한된 OAuth 권한입니다. 공개 배포용 OAuth 프로젝트는 구글의 검증 요건을 충족해야 하며, 테스트 상태에서는 승인 수명 등 개발용 제약이 적용될 수 있습니다. [권한 범위 안내](https://developers.google.com/workspace/drive/api/guides/api-specific-auth), [데스크톱 OAuth 안내](https://developers.google.com/identity/protocols/oauth2/native-app)
 
 ### 동기화 쌍 설정
+
+반복 동기화에서는 계정·루트·필터별 Drive 목록과 변경 커서를 저장해 변경된 파일의 상위 폴더만 다시 조회합니다. PC의 로컬 NTFS 파일은 파일 ID와 변경 시각 등 신원이 같으면 MD5를 재사용합니다. 폴더 구조 변경·캐시 손상·7일 경과 등에는 전체 검사로 복구하며, 미러링 삭제 후보가 있으면 소스를 캐시 없이 다시 검증합니다. 자세한 동작과 모의 측정 결과는 [반복 동기화 설계 문서](docs/google-drive-incremental-1.6.3.md)를 참고하세요.
 
 1. **쌍 추가**로 비활성 동기화 쌍을 만듭니다.
 2. 해당 행을 선택하고 **연결 설정**에서 방향, 계정, PC 폴더와 Drive 폴더를 선택합니다. Drive 폴더 선택기는 내 드라이브에서 하위 폴더를 탐색합니다. 새 폴더가 필요하면 부모 폴더를 선택한 뒤 **새 폴더**에서 이름을 입력해 만듭니다. 생성된 폴더가 자동 선택되면 **이 폴더 선택**을 누릅니다.
@@ -150,7 +161,7 @@ scripts\simple-sync-robocopy.cmd "\\wsl.localhost\Ubuntu-24.04\home\u24\projects
 ## 설치 프로그램 생성
 
 Windows 설치 프로그램은 Inno Setup 기반으로 생성합니다.
-개발 중에는 파일을 수정할 때마다 설치 파일을 재생성하지 않습니다. 사용자가 별도로 요청하거나 최종 배포를 준비할 때 아래 명령으로 `dist\simple-sync-setup-버전.exe`를 생성합니다. 예를 들어 1.5.1은 `simple-sync-setup-1.5.1.exe`입니다. 그 전에는 빌드와 관련 테스트로 검증합니다.
+개발 중에는 파일을 수정할 때마다 설치 파일을 재생성하지 않습니다. 사용자가 별도로 요청하거나 최종 배포를 준비할 때 아래 명령으로 `dist\simple-sync-setup-버전.exe`를 생성합니다. 예를 들어 1.6.3은 `simple-sync-setup-1.6.3.exe`입니다. 그 전에는 빌드와 관련 테스트로 검증합니다.
 
 사전 준비:
 
@@ -188,7 +199,7 @@ dotnet build
 생성 결과:
 
 ```text
-dist\simple-sync-setup-1.5.1.exe
+dist\simple-sync-setup-1.6.3.exe
 ```
 
 설치 프로그램은 `.NET Windows Desktop Runtime`이 없는 PC에서도 실행되도록 self-contained publish 결과를 포함합니다.
@@ -215,7 +226,7 @@ Release 생성 전 확인:
 ```
 
 기본값은 `VERSION` 파일의 버전을 읽어 `v버전` 태그를 만들고, `dist\simple-sync-setup-버전.exe`와 `release-notes-버전.md`를 사용합니다.
-예를 들어 `VERSION`이 `1.5.1`이면 `v1.5.1` 태그와 `release-notes-1.5.1.md`를 사용합니다.
+예를 들어 `VERSION`이 `1.6.3`이면 `v1.6.3` 태그와 `release-notes-1.6.3.md`를 사용합니다.
 
 다른 저장소, 브랜치, 파일을 지정해야 하는 경우:
 
@@ -223,9 +234,9 @@ Release 생성 전 확인:
 .\scripts\create-github-release.ps1 `
   -Repository "endy1328/simple-sync" `
   -Target "main" `
-  -Version "1.5.1" `
-  -InstallerPath ".\dist\simple-sync-setup-1.5.1.exe" `
-  -NotesPath ".\release-notes-1.5.1.md"
+  -Version "1.6.3" `
+  -InstallerPath ".\dist\simple-sync-setup-1.6.3.exe" `
+  -NotesPath ".\release-notes-1.6.3.md"
 ```
 
 스크립트는 설치 파일의 SHA256도 출력합니다. 이 값은 winget manifest의 `InstallerSha256`에 사용합니다.

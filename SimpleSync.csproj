@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -8,12 +8,13 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>simple sync</AssemblyName>
     <Product>simple sync</Product>
-    <Version>1.5.1</Version>
-    <AssemblyVersion>1.5.1.0</AssemblyVersion>
-    <FileVersion>1.5.1.0</FileVersion>
-    <InformationalVersion>1.5.1</InformationalVersion>
+    <Version>1.6.3</Version>
+    <AssemblyVersion>1.6.3.0</AssemblyVersion>
+    <FileVersion>1.6.3.0</FileVersion>
+    <InformationalVersion>1.6.3</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <ApplicationIcon>Assets\simple-sync.ico</ApplicationIcon>
+    <GoogleOAuthClientConfigPath Condition="'$(GoogleOAuthClientConfigPath)' == ''">$(MSBuildProjectDirectory)\google-oauth-client.local.json</GoogleOAuthClientConfigPath>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,5 +22,13 @@
     <Compile Remove="tests\**\*.cs" />
     <Compile Remove="tools\**\*.cs" />
   </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(GoogleOAuthClientConfigPath)')">
+    <EmbeddedResource Include="$(GoogleOAuthClientConfigPath)" LogicalName="SimpleSync.GoogleOAuthClient.json" />
+  </ItemGroup>
+
+  <Target Name="RequireGoogleLoginForPublish" BeforeTargets="Publish">
+    <Error Condition="!Exists('$(GoogleOAuthClientConfigPath)')" Text="Google sign-in deployment settings are missing. Supply google-oauth-client.local.json or -p:GoogleOAuthClientConfigPath=PATH before publishing." />
+  </Target>
 
 </Project>

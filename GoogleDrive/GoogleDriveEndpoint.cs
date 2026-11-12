@@ -8,8 +8,12 @@ using System.Text.Json;
 namespace SimpleSync;
 
 /// <summary>Drive v3 transport for a single My Drive root. The caller owns the authenticated client.</summary>
-public sealed class GoogleDriveEndpoint(HttpClient client, string rootFolderId, bool exportGoogleDocuments = true) : IStorageEndpoint, IConcurrentTransferEndpoint
+public sealed partial class GoogleDriveEndpoint(HttpClient client, string rootFolderId, bool exportGoogleDocuments = true,
+    string? accountId = null, string? inventoryDirectory = null) : IStorageEndpoint, IConcurrentTransferEndpoint, IConcurrentDirectoryEndpoint, IFreshInventoryEndpoint
 {
+    public GoogleDriveEndpoint(HttpClient client, string rootFolderId, bool exportGoogleDocuments)
+        : this(client, rootFolderId, exportGoogleDocuments, null, null) { }
+
     public const string FolderMimeType = "application/vnd.google-apps.folder";
     private const string Api = "https://www.googleapis.com/drive/v3/files";
     private const string UploadApi = "https://www.googleapis.com/upload/drive/v3/files";
@@ -19,7 +23,9 @@ public sealed class GoogleDriveEndpoint(HttpClient client, string rootFolderId, 
     private readonly ConcurrentDictionary<string, string> _folders = new(StringComparer.OrdinalIgnoreCase);
     private string? _rootId;
     public int MaxConcurrentTransfers => 4;
-    private readonly SemaphoreSlim _directoryGate = new(1, 1), _idGate = new(1, 1);
+    public int MaxConcurrentDirectories => 4;
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _folderGates = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _rootGate = new(1, 1), _idGate = new(1, 1);
     private readonly Queue<string> _reservedIds = new();
 
     private sealed record RemoteFile(string Id, string Name, string MimeType, string? Parent,
@@ -34,12 +40,22 @@ public sealed class GoogleDriveEndpoint(HttpClient client, string rootFolderId, 
             ["application/vnd.google-apps.presentation"] = (".pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation")
         };
 
-    public async Task<IReadOnlyList<StorageEntry>> ListAsync(SyncFilter filter, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<StorageEntry>> ListAsync(SyncFilter filter, CancellationToken cancellationToken)
+        => string.IsNullOrWhiteSpace(accountId) ? ScanAsync(filter, null, false, cancellationToken)
+            : ListInventoryAsync(filter, forceFull: false, cancellationToken);
+
+    public Task<IReadOnlyList<StorageEntry>> ListFreshAsync(SyncFilter filter, CancellationToken cancellationToken)
+        => string.IsNullOrWhiteSpace(accountId) ? ScanAsync(filter, null, false, cancellationToken)
+            : ListInventoryAsync(filter, forceFull: true, cancellationToken);
+
+    private async Task<IReadOnlyList<StorageEntry>> ScanAsync(SyncFilter filter,
+        Dictionary<string, List<RemoteFile>>? directories, bool reuse, CancellationToken cancellationToken, bool validateRoot = true)
     {
-        await ValidateRootAsync(cancellationToken);
+        if (validateRoot) await ValidateRootAsync(cancellationToken);
         _known.Clear();
         _reservedIds.Clear();
         _folders.Clear();
+        _folderGates.Clear();
         _folders[""] = _rootId!;
         var result = new List<StorageEntry>();
         var pending = new Queue<(string Id, string Path)>();
@@ -47,7 +63,13 @@ public sealed class GoogleDriveEndpoint(HttpClient client, string rootFolderId, 
         pending.Enqueue((_rootId!, ""));
         while (pending.TryDequeue(out var directory))
         {
-            var children = await GetChildrenAsync(directory.Id, cancellationToken);
+            IReadOnlyList<RemoteFile> children;
+            if (reuse && directories!.TryGetValue(directory.Id, out var saved)) children = saved;
+            else
+            {
+                children = await GetChildrenAsync(directory.Id, cancellationToken);
+                if (directories is not null) directories[directory.Id] = children.ToList();
+            }
             foreach (var file in children)
             {
                 var rawPath = Join(directory.Path, file.Name);
@@ -161,18 +183,26 @@ public sealed class GoogleDriveEndpoint(HttpClient client, string rootFolderId, 
     {
         var path = NormalizePath(relativePath, allowEmpty: true);
         if (_folders.ContainsKey(path)) return;
-        await _directoryGate.WaitAsync(cancellationToken);
+        await _rootGate.WaitAsync(cancellationToken);
         try
         {
-            if (_folders.ContainsKey(path)) return;
             if (_rootId is null) await ValidateRootAsync(cancellationToken);
             _folders[""] = _rootId!;
-            var parent = _rootId!;
-            var current = "";
-            foreach (var segment in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        }
+        finally { _rootGate.Release(); }
+        var parent = _rootId!;
+        var current = "";
+        foreach (var segment in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Join(current, segment);
+            if (_folders.TryGetValue(current, out var cached)) { parent = cached; continue; }
+            // Only callers creating the same case-insensitive path wait for one another.
+            // Release each parent lock before progressing to a child to avoid nested locks.
+            var gate = _folderGates.GetOrAdd(current, _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync(cancellationToken);
+            try
             {
-                current = Join(current, segment);
-                if (_folders.TryGetValue(current, out var cached)) { parent = cached; continue; }
+                if (_folders.TryGetValue(current, out cached)) { parent = cached; continue; }
                 await ValidateParentAsync(parent, cancellationToken);
                 var matches = (await GetChildrenAsync(parent, cancellationToken))
                     .Where(file => string.Equals(file.Name, segment, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -180,12 +210,12 @@ public sealed class GoogleDriveEndpoint(HttpClient client, string rootFolderId, 
                     throw new IOException($"Drive name conflicts with directory: {current}");
                 var folder = matches.Count == 1 ? matches[0] : await CreateRemoteFolderAsync(parent, segment, cancellationToken);
                 ValidateFolder(folder);
-                _folders[current] = folder.Id;
                 _known[folder.Id] = folder;
+                _folders[current] = folder.Id;
                 parent = folder.Id;
             }
+            finally { gate.Release(); }
         }
-        finally { _directoryGate.Release(); }
     }
 
     private async Task ValidateParentAsync(string id, CancellationToken cancellationToken)

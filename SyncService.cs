@@ -41,12 +41,13 @@ public sealed class SyncService
                         using var accounts = new GoogleAccountService();
                         using var client = await accounts.CreateAuthenticatedClientAsync(pair.DriveAccountId, cancellationToken);
                         var remoteSource = pair.SourceType == StorageTypes.GoogleDrive;
+                        var hashCache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SimpleSync", "LocalHashes");
                         IStorageEndpoint source = remoteSource
-                            ? new GoogleDriveEndpoint(client, pair.Source)
-                            : new LocalStorageEndpoint(pair.Source);
+                            ? new GoogleDriveEndpoint(client, pair.Source, accountId: pair.DriveAccountId)
+                            : new LocalStorageEndpoint(pair.Source, hashCache);
                         IStorageEndpoint target = remoteSource
-                            ? new LocalStorageEndpoint(pair.Target)
-                            : new GoogleDriveEndpoint(client, pair.Target, exportGoogleDocuments: false);
+                            ? new LocalStorageEndpoint(pair.Target, hashCache)
+                            : new GoogleDriveEndpoint(client, pair.Target, exportGoogleDocuments: false, accountId: pair.DriveAccountId);
                         if (target is LocalStorageEndpoint local) local.CreateTargetRoot();
                         result = await new EndpointSyncService().SyncAsync(pair, source, target, progress, cancellationToken);
                     }

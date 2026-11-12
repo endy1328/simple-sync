@@ -25,7 +25,7 @@ public static class StoragePath
     }
 }
 
-public sealed class LocalStorageEndpoint(string root) : IStorageEndpoint
+public sealed class LocalStorageEndpoint(string root, string? hashCacheDirectory = null) : IStorageEndpoint, IFreshInventoryEndpoint
 {
     public string Root { get; } = NormalizeRoot(root);
 
@@ -88,8 +88,21 @@ public sealed class LocalStorageEndpoint(string root) : IStorageEndpoint
         }
     }
 
-    public async Task<IReadOnlyList<StorageEntry>> ListAsync(SyncFilter filter, CancellationToken cancellationToken)
+    public int HashedFiles { get; private set; }
+    public int ReusedHashes { get; private set; }
+
+    public Task<IReadOnlyList<StorageEntry>> ListAsync(SyncFilter filter, CancellationToken cancellationToken) =>
+        ListCoreAsync(filter, cancellationToken, fresh: false);
+
+    public Task<IReadOnlyList<StorageEntry>> ListFreshAsync(SyncFilter filter, CancellationToken cancellationToken) =>
+        ListCoreAsync(filter, cancellationToken, fresh: true);
+
+    private async Task<IReadOnlyList<StorageEntry>> ListCoreAsync(SyncFilter filter, CancellationToken cancellationToken, bool fresh)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        HashedFiles = ReusedHashes = 0;
+        var cache = hashCacheDirectory is not null && LocalHashCache.IsSupportedRoot(Root)
+            ? new LocalHashCache(Root, hashCacheDirectory, filter.CacheKey, fresh) : null;
         ValidateAncestors(Root.TrimEnd(Path.DirectorySeparatorChar));
         if (!Directory.Exists(Root)) throw new DirectoryNotFoundException(Root);
         var entries = new List<StorageEntry>();
@@ -120,14 +133,31 @@ public sealed class LocalStorageEndpoint(string root) : IStorageEndpoint
                     var version = info.LastWriteTimeUtc.Ticks.ToString();
                     var length = info.Length;
                     await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 1024 * 1024, true);
-                    var md5 = Convert.ToHexString(await MD5.HashDataAsync(stream, cancellationToken));
+                    var identity = cache is null ? null : LocalHashCache.ReadIdentity(stream.SafeFileHandle);
+                    string md5;
+                    if (identity is not null && cache!.ReuseAllowed && cache.Previous.Files.TryGetValue(relative, out var previous) &&
+                        previous is not null && previous.Identity == identity && previous.Md5 is { Length: 32 } && previous.Md5.All(Uri.IsHexDigit))
+                    {
+                        md5 = previous.Md5;
+                        ReusedHashes++;
+                    }
+                    else
+                    {
+                        md5 = Convert.ToHexString(await MD5.HashDataAsync(stream, cancellationToken));
+                        HashedFiles++;
+                    }
+                    var after = identity is null ? null : LocalHashCache.ReadIdentity(stream.SafeFileHandle);
                     info.Refresh();
-                    if (info.Length != length || info.LastWriteTimeUtc.Ticks.ToString() != version) throw new IOException($"File changed during scan: {relative}");
+                    if (info.Length != length || info.LastWriteTimeUtc.Ticks.ToString() != version || (identity is not null && identity != after))
+                        throw new IOException($"File changed during scan: {relative}");
+                    if (identity is not null) cache!.Next.Files[relative] = new(identity, md5);
                     entries.Add(new(path, relative, false, length, md5, version));
                 }
             }
         }
         await Walk(Root);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (cache is not null) await cache.SaveAsync(cancellationToken);
         return entries;
     }
 

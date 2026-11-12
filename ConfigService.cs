@@ -69,6 +69,11 @@ public sealed class ConfigService
                 {
                     config.IntervalSeconds = Math.Clamp(seconds, 1, 86_400);
                 }
+                else if (key.Equals("auto_sync", StringComparison.OrdinalIgnoreCase) &&
+                    bool.TryParse(value, out var autoSync))
+                {
+                    config.AutoSync = autoSync;
+                }
                 else if (key.Equals("skin", StringComparison.OrdinalIgnoreCase))
                 {
                     config.Skin = Unquote(value);
@@ -192,6 +197,7 @@ public sealed class ConfigService
     {
         var builder = new StringBuilder();
         builder.AppendLine($"interval_seconds = {Math.Clamp(config.IntervalSeconds, 1, 86_400)}");
+        builder.AppendLine($"auto_sync = {config.AutoSync.ToString().ToLowerInvariant()}");
         builder.AppendLine($"skin = \"{Escape(config.Skin)}\"");
         builder.AppendLine($"language = \"{Escape(LocalizationService.NormalizeLanguage(config.Language))}\"");
         builder.AppendLine($"window_width = {Math.Clamp(config.WindowWidth, 860, 10_000)}");

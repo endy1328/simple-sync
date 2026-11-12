@@ -16,6 +16,7 @@ dist/
 
 # Runtime configuration generated beside the executable
 config.toml
+google-oauth-client.local.json
 
 # Logs and temporary files
 *.log

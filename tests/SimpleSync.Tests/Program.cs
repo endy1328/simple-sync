@@ -2,6 +2,8 @@ using SimpleSync;
 using SimpleSync.Tests;
 
 await Run("Google accounts encrypt and isolate credentials", GoogleAccountTests.RunAsync);
+await Run("Drive inventories reuse change cursors and recover safely", DriveInventoryCacheTests.RunAsync);
+await Run("local NTFS hash inventories reuse identities and recover safely", LocalHashCacheTests.RunAsync);
 await Run("Drive REST endpoint handles pagination, exports and deletion", DriveEndpointTests.RunAsync);
 await Run("Drive pair selections validate supported endpoints and accounts", DriveDialogTests.RunAsync);
 await Run("common endpoint sync preserves source-first and mirror guarantees", EndpointSyncTests.RunAsync);
@@ -30,6 +32,7 @@ await Run("localization falls back to Korean for unsupported language", Localiza
 await Run("localization returns key for missing text", LocalizationReturnsKeyForMissingText);
 await Run("localization formats strings", LocalizationFormatsStrings);
 await Run("config round-trips language", ConfigRoundTripsLanguage);
+await Run("automatic sync setting survives saves and preserves legacy defaults", AutoSyncConfigRoundTrips);
 await Run("default filter presets can be localized", DefaultFilterPresetsCanBeLocalized);
 await Run("window title localizes debug state", WindowTitleLocalizesDebugState);
 await Run("selected pair current status localizes", SelectedPairCurrentStatusLocalizes);
@@ -527,6 +530,25 @@ static Task LocalizationFormatsStrings()
         localization.Format("activity.completed", "Pair 1", 2, 3, 4, 5, 6) == "[Pair 1] Done: copied 2, skipped 3, deleted 4, excluded 5, failed 6",
         "formatted English activity text should include all arguments");
 
+    return Task.CompletedTask;
+}
+
+static Task AutoSyncConfigRoundTrips()
+{
+    using var workspace = TestWorkspace.Create();
+    var path = Path.Combine(workspace.Root, "config.toml");
+    var service = new ConfigService(path);
+    Assert(service.Load().AutoSync, "fresh installs must preserve the existing automatic sync default");
+    File.WriteAllText(path, "interval_seconds = 30\nauto_sync = false\n");
+    var config = service.Load();
+    Assert(!config.AutoSync, "explicit false must load as disabled");
+    service.Save(config);
+    Assert(!service.Load().AutoSync, "disabled state must survive saving and reloading");
+    config.AutoSync = true;
+    service.Save(config);
+    Assert(service.Load().AutoSync, "enabled state must survive saving and reloading");
+    File.WriteAllText(path, "interval_seconds = 30\n");
+    Assert(service.Load().AutoSync, "older configurations must keep the prior default");
     return Task.CompletedTask;
 }
 

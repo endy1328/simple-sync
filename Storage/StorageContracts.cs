@@ -24,3 +24,15 @@ public interface IConcurrentTransferEndpoint
 {
     int MaxConcurrentTransfers { get; }
 }
+
+/// <summary>Opt-in for concurrent directory preparation; shared parent paths must be deduplicated.</summary>
+public interface IConcurrentDirectoryEndpoint
+{
+    int MaxConcurrentDirectories { get; }
+}
+
+/// <summary>A fresh inventory bypasses persistent caches for destructive-operation revalidation.</summary>
+public interface IFreshInventoryEndpoint
+{
+    Task<IReadOnlyList<StorageEntry>> ListFreshAsync(SyncFilter filter, CancellationToken cancellationToken);
+}

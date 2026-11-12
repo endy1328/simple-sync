@@ -24,19 +24,36 @@ public sealed class GoogleAccountService : IDisposable
     private ClientConfiguration? _client;
 
     public GoogleAccountService(string? dataDirectory = null, HttpClient? httpClient = null)
+        : this(dataDirectory, httpClient, ReadBundledClientConfiguration()) { }
+
+    public GoogleAccountService(string? dataDirectory, HttpClient? httpClient, string? bundledClientJson)
     {
         _directory = dataDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "SimpleSync", IsDebug ? "GoogleDrive.Debug" : "GoogleDrive");
-        _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
-        _ownsHttp = httpClient is null;
         Directory.CreateDirectory(_directory);
         _client = ReadEncrypted<ClientConfiguration>("client.dat");
+        if (_client is null && bundledClientJson is not null)
+        {
+            _client = ParseClientConfiguration(bundledClientJson);
+            // Pin the client used to grant tokens, even if a later app bundles a different client.
+            SaveEncrypted("client.dat", _client);
+        }
         foreach (var token in ReadEncrypted<List<AccountToken>>("accounts.dat") ?? [])
         {
             if (string.IsNullOrWhiteSpace(token.Id) || string.IsNullOrWhiteSpace(token.RefreshToken))
                 throw new InvalidOperationException("저장된 Google 계정 정보가 올바르지 않습니다. / Invalid saved Google credentials.");
             _tokens.Add(token.Id, token);
         }
+        _http = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
+        _ownsHttp = httpClient is null;
+    }
+
+    private static string? ReadBundledClientConfiguration()
+    {
+        using var stream = typeof(GoogleAccountService).Assembly.GetManifestResourceStream("SimpleSync.GoogleOAuthClient.json");
+        if (stream is null) return null;
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
     }
 
     private static bool IsDebug
@@ -66,10 +83,22 @@ public sealed class GoogleAccountService : IDisposable
 
     public void ImportClientConfiguration(string jsonPath)
     {
+        var client = ParseClientConfiguration(File.ReadAllText(jsonPath));
+        lock (_gate)
+        {
+            if (_tokens.Count > 0 && _client?.ClientId != client.ClientId)
+                throw new InvalidOperationException("OAuth 클라이언트를 변경하려면 먼저 연결된 계정을 해제하세요. / Disconnect accounts before changing the OAuth client.");
+            SaveEncrypted("client.dat", client);
+            _client = client;
+        }
+    }
+
+    private static ClientConfiguration ParseClientConfiguration(string json)
+    {
         ClientConfiguration client;
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(jsonPath));
+            using var document = JsonDocument.Parse(json);
             var installed = document.RootElement.GetProperty("installed");
             var id = installed.GetProperty("client_id").GetString();
             if (string.IsNullOrWhiteSpace(id) || !id.EndsWith(".apps.googleusercontent.com", StringComparison.Ordinal))
@@ -80,18 +109,12 @@ public sealed class GoogleAccountService : IDisposable
         {
             throw new InvalidOperationException("Google Cloud에서 다운로드한 Desktop app 클라이언트 JSON을 선택하세요. / Select a Desktop app client JSON.", ex);
         }
-        lock (_gate)
-        {
-            if (_tokens.Count > 0 && _client?.ClientId != client.ClientId)
-                throw new InvalidOperationException("OAuth 클라이언트를 변경하려면 먼저 연결된 계정을 해제하세요. / Disconnect accounts before changing the OAuth client.");
-            SaveEncrypted("client.dat", client);
-            _client = client;
-        }
+        return client;
     }
 
     public async Task<GoogleAccount> ConnectAsync(CancellationToken cancellationToken)
     {
-        var client = _client ?? throw new InvalidOperationException("먼저 Desktop OAuth 클라이언트 JSON을 가져오세요. / Import Desktop OAuth client JSON first.");
+        var client = _client ?? throw new InvalidOperationException("앱의 Google 로그인 설정이 포함되지 않았습니다. 배포자에게 문의하거나 고급 설정에서 인증 설정을 가져오세요. / Google sign-in is not configured in this build. Contact the distributor or import credentials in advanced settings.");
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(TimeSpan.FromMinutes(5));
         var ct = deadline.Token;

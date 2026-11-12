@@ -15,9 +15,30 @@ public static class GoogleAccountTests
         Directory.CreateDirectory(root);
         try
         {
+            using (var unconfigured = new GoogleAccountService(Path.Combine(root, "unconfigured"), null, null))
+                Check(!unconfigured.HasClientConfiguration, "source-only builds must report missing configuration honestly");
+            using (var resource = typeof(GoogleAccountService).Assembly.GetManifestResourceStream("SimpleSync.GoogleOAuthClient.json"))
+            using (var fresh = new GoogleAccountService(Path.Combine(root, "fresh-install")))
+                Check(fresh.HasClientConfiguration == (resource is not null), "fresh installs must automatically load the embedded client");
+            var bundle = "{\"installed\":{\"client_id\":\"bundled.apps.googleusercontent.com\",\"client_secret\":\"public-desktop-client\"}}";
+            var bundledRoot = Path.Combine(root, "bundled");
+            using (var bundled = new GoogleAccountService(bundledRoot, null, bundle))
+                Check(bundled.HasClientConfiguration, "bundled desktop client must allow login without JSON import");
+            using (var upgraded = new GoogleAccountService(bundledRoot, null, "invalid-json"))
+                Check(upgraded.HasClientConfiguration, "saved client must retain precedence across bundled client upgrades");
+            var bundledTokens = new[] { new { Id = "account-a", Email = "a@example.com", AccessToken = "expired", RefreshToken = "refresh-a", ExpiresAt = DateTimeOffset.UtcNow.AddHours(-1) } };
+            File.WriteAllBytes(Path.Combine(bundledRoot, "accounts.dat"), GoogleCredentialProtection.Protect(JsonSerializer.SerializeToUtf8Bytes(bundledTokens)));
+            var pinnedTransport = new TokenTransport();
+            using (var http = new HttpClient(pinnedTransport))
+            using (var upgraded = new GoogleAccountService(bundledRoot, http, bundle.Replace("bundled.apps", "replacement.apps")))
+            using (await upgraded.CreateAuthenticatedClientAsync("account-a", CancellationToken.None))
+                Check(pinnedTransport.Form.Contains("client_id=bundled.apps.googleusercontent.com", StringComparison.Ordinal),
+                    "refresh tokens must stay bound to the client that originally granted access");
+            ExpectFailure(() => new GoogleAccountService(Path.Combine(root, "invalid"), null, "{\"web\":{}}"),
+                "invalid bundled client must be rejected");
             using var serviceOwner = (IDisposable)Activator.CreateInstance(serviceType!, new object?[] { root, null })!;
             dynamic service = serviceOwner;
-            Check(!(bool)service.HasClientConfiguration, "fresh store must need client configuration");
+            // Production builds may include the distributor's default desktop client.
             var configPath = Path.Combine(root, "desktop.json");
             File.WriteAllText(configPath, "{\"web\":{\"client_id\":\"wrong\"}}");
             ExpectFailure(() => service.ImportClientConfiguration(configPath), "web client must be rejected");

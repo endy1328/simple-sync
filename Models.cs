@@ -3,6 +3,7 @@ namespace SimpleSync;
 public sealed class AppConfig
 {
     public int IntervalSeconds { get; set; } = 10;
+    public bool AutoSync { get; set; } = true;
     public string Skin { get; set; } = "syncback_blue";
     public string Language { get; set; } = LocalizationService.DefaultLanguage;
     public int WindowWidth { get; set; } = 1720;

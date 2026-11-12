@@ -57,6 +57,8 @@ public static class DriveDialogTests
                         Check(handler.Cancelled, "closing a folder picker must cancel its pending HTTP request");
                         Check(picker.IsDisposed, "folder picker must close after its pending request finishes cancellation");
                         BusyMainFormRejectsCustomPasteAndFilterEditing();
+                        GoogleLoginNeedsNoVisibleJsonImport();
+                        AutoSyncChoiceSurvivesRestart();
                         CreatesAndSelectsPickerFolder();
                         CancelsPendingFolderCreation();
                     }
@@ -74,6 +76,60 @@ public static class DriveDialogTests
         thread.IsBackground = true;
         thread.Start();
         return completion.Task.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    private static void AutoSyncChoiceSurvivesRestart()
+    {
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var root = Path.Combine(Path.GetTempPath(), "simple-sync-auto-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "config.toml");
+        File.WriteAllText(path, "interval_seconds = 86400\nauto_sync = false\n");
+        try
+        {
+            foreach (var expected in new[] { false, true, false })
+            {
+                using var form = new MainForm(path)
+                {
+                    StartPosition = FormStartPosition.Manual,
+                    Location = new System.Drawing.Point(-12000, -12000), ShowInTaskbar = false
+                };
+                form.Show();
+                var check = (CheckBox)typeof(MainForm).GetField("_autoSyncCheck", flags)!.GetValue(form)!;
+                var timer = (System.Windows.Forms.Timer)typeof(MainForm).GetField("_timer", flags)!.GetValue(form)!;
+                Check(check.Checked == expected, "reopened checkbox must restore the saved automatic sync state");
+                Check(timer.Enabled == expected, "startup timer must follow the saved automatic sync state");
+                check.Checked = !expected;
+                Check(new ConfigService(path).Load().AutoSync == !expected, "toggling automatic sync must persist immediately");
+                Check(timer.Enabled == !expected, "toggling automatic sync must update the timer");
+                form.Close();
+            }
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    private static void GoogleLoginNeedsNoVisibleJsonImport()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "simple-sync-login-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var service = new GoogleAccountService(root, null,
+                "{\"installed\":{\"client_id\":\"test.apps.googleusercontent.com\"}}");
+            using var dialog = new GoogleAccountsDialog(service, new LocalizationService());
+            dialog.Show();
+            Application.DoEvents();
+            var connect = dialog.Controls.Find("ConnectGoogleAccount", true).Single();
+            var import = dialog.Controls.Find("ImportOAuthSettings", true).Single();
+            var advanced = (Button)dialog.Controls.Find("AdvancedGoogleSettings", true).Single();
+            Check(connect.Visible && connect.Enabled, "bundled build must offer Google sign-in immediately");
+            Check(!import.Visible, "ordinary login must not ask for OAuth JSON import");
+            advanced.PerformClick();
+            Check(import.Visible, "advanced settings must preserve custom client import");
+            advanced.PerformClick();
+            Check(!import.Visible, "advanced settings must collapse again");
+            dialog.Close();
+        }
+        finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }
 
     private static void BusyMainFormRejectsCustomPasteAndFilterEditing()
