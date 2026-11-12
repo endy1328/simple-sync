@@ -1,5 +1,12 @@
 using SimpleSync;
+using SimpleSync.Tests;
 
+await Run("Google accounts encrypt and isolate credentials", GoogleAccountTests.RunAsync);
+await Run("Drive REST endpoint handles pagination, exports and deletion", DriveEndpointTests.RunAsync);
+await Run("Drive pair selections validate supported endpoints and accounts", DriveDialogTests.RunAsync);
+await Run("common endpoint sync preserves source-first and mirror guarantees", EndpointSyncTests.RunAsync);
+await Run("bounded Drive concurrency preserves failure and cancellation barriers", ConcurrentSyncTests.RunAsync);
+await Run("storage endpoints round-trip with legacy local defaults", StorageConfigRoundTrips);
 await Run("overlapping paths are rejected without changing files", OverlappingPathsAreRejected);
 await Run("invalid pairs report failure and allow the next pair", InvalidPairsReportFailureAndContinue);
 await Run("config save replaces the file while an existing reader stays open", ConfigSaveReplacesFileWithOpenReader);
@@ -45,6 +52,22 @@ static async Task Run(string name, Func<Task> test)
         Console.Error.WriteLine($"FAIL {name}: {ex.Message}");
         Environment.ExitCode = 1;
     }
+}
+
+static Task StorageConfigRoundTrips()
+{
+    using var workspace = TestWorkspace.Create();
+    var path = Path.Combine(workspace.Root, "drive.toml");
+    var service = new ConfigService(path);
+    service.Save(new AppConfig { Pairs = [new SyncPair { Source = workspace.Source,
+        Target = "folder-id", TargetType = "google_drive", DriveAccountId = "account-sub", TargetLabel = "Backup" }] });
+    var loaded = service.Load().Pairs.Single();
+    Assert(loaded.SourceType == "local" && loaded.TargetType == "google_drive", "endpoint types must round-trip");
+    Assert(loaded.DriveAccountId == "account-sub" && loaded.TargetLabel == "Backup", "account and display folder must round-trip");
+    File.WriteAllText(path, "[[pairs]]\nsource = \"C:\\\\source\"\ntarget = \"D:\\\\target\"\n");
+    loaded = service.Load().Pairs.Single();
+    Assert(loaded.SourceType == "local" && loaded.TargetType == "local", "legacy config must remain local");
+    return Task.CompletedTask;
 }
 
 static async Task OverlappingPathsAreRejected()
@@ -538,8 +561,9 @@ static Task WindowTitleLocalizesDebugState()
     var korean = new LocalizationService("ko-KR");
     var english = new LocalizationService("en-US");
 
-    Assert(SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: false, korean) == "simple sync", "Korean release title should match app title");
-    Assert(SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: true, english) == "simple sync (Debug)", "English debug title should include Debug");
+    var version = typeof(MainForm).Assembly.GetName().Version!.ToString(3);
+    Assert(SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: false, korean) == $"simple sync ({version})", "Korean release title should include current version in parentheses");
+    Assert(SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: true, english) == $"simple sync ({version}) (Debug)", "English debug title should include version and Debug");
 
     return Task.CompletedTask;
 }
@@ -587,11 +611,11 @@ static Task DebugBuildUsesSeparateSingleInstanceMutex()
 static Task DebugBuildLabelsWindowTitleAndStatus()
 {
     Assert(
-        SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: false) == "simple sync",
+        SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: false) == $"simple sync ({typeof(MainForm).Assembly.GetName().Version!.ToString(3)})",
         "release title should not include debug label");
 
     Assert(
-        SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: true) == "simple sync (Debug)",
+        SimpleSync.MainForm.FormatWindowTitle(isDebugBuild: true) == $"simple sync ({typeof(MainForm).Assembly.GetName().Version!.ToString(3)}) (Debug)",
         "debug title should include debug label");
 
     Assert(

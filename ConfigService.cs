@@ -121,7 +121,27 @@ public sealed class ConfigService
                 continue;
             }
 
-            if (key.Equals("enabled", StringComparison.OrdinalIgnoreCase) &&
+            if (key.Equals("source_type", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.SourceType = Unquote(value);
+            }
+            else if (key.Equals("target_type", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.TargetType = Unquote(value);
+            }
+            else if (key.Equals("drive_account_id", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.DriveAccountId = Unquote(value);
+            }
+            else if (key.Equals("source_label", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.SourceLabel = Unquote(value);
+            }
+            else if (key.Equals("target_label", StringComparison.OrdinalIgnoreCase))
+            {
+                currentPair.TargetLabel = Unquote(value);
+            }
+            else if (key.Equals("enabled", StringComparison.OrdinalIgnoreCase) &&
                 bool.TryParse(value, out var enabled))
             {
                 currentPair.Enabled = enabled;
@@ -192,6 +212,11 @@ public sealed class ConfigService
         foreach (var pair in config.Pairs)
         {
             builder.AppendLine("[[pairs]]");
+            builder.AppendLine($"source_type = \"{Escape(pair.SourceType)}\"");
+            builder.AppendLine($"target_type = \"{Escape(pair.TargetType)}\"");
+            builder.AppendLine($"drive_account_id = \"{Escape(pair.DriveAccountId)}\"");
+            builder.AppendLine($"source_label = \"{Escape(pair.SourceLabel)}\"");
+            builder.AppendLine($"target_label = \"{Escape(pair.TargetLabel)}\"");
             builder.AppendLine($"name = \"{Escape(pair.Name)}\"");
             builder.AppendLine($"enabled = {pair.Enabled.ToString().ToLowerInvariant()}");
             builder.AppendLine($"mode = \"{Escape(SyncModes.Normalize(pair.Mode))}\"");

@@ -3,7 +3,7 @@
 #endif
 
 #ifndef AppVersion
-  #define AppVersion "1.2.2"
+  #define AppVersion "1.5.1"
 #endif
 
 #ifndef AppPublisher
@@ -31,7 +31,7 @@ DefaultDirName={localappdata}\Programs\simple sync
 DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir={#OutputDir}
-OutputBaseFilename=simple-sync-setup
+OutputBaseFilename=simple-sync-setup-{#AppVersion}
 SetupIconFile={#StagingDir}\Assets\simple-sync.ico
 Compression=lzma2
 SolidCompression=yes

@@ -32,6 +32,8 @@ function Read-SimpleSyncConfig {
                 mode = "copy"
                 source = ""
                 target = ""
+                source_type = "local"
+                target_type = "local"
             }
             $config.pairs.Add($currentPair)
             continue
@@ -70,6 +72,9 @@ function Read-SimpleSyncConfig {
         }
         elseif ($key -ieq "target") {
             $currentPair.target = ConvertFrom-TomlString $value
+        }
+        elseif ($key -ieq "source_type" -or $key -ieq "target_type") {
+            $currentPair[$key.ToLowerInvariant()] = ConvertFrom-TomlString $value
         }
     }
 
@@ -163,6 +168,10 @@ function Invoke-SimpleSync {
 
     foreach ($pair in $Config.pairs) {
         if (-not $pair.enabled) {
+            continue
+        }
+        if ($pair.source_type -ne "local" -or $pair.target_type -ne "local") {
+            Write-Host "[$($pair.name)] Google Drive is supported by the desktop app only; skipping."
             continue
         }
 

@@ -84,6 +84,11 @@ public sealed class FilterPreset
 
 public sealed class SyncPair
 {
+    public string SourceType { get; set; } = StorageTypes.Local;
+    public string TargetType { get; set; } = StorageTypes.Local;
+    public string DriveAccountId { get; set; } = string.Empty;
+    public string SourceLabel { get; set; } = string.Empty;
+    public string TargetLabel { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public bool Enabled { get; set; } = true;
     public string Mode { get; set; } = SyncModes.Copy;
@@ -124,7 +129,8 @@ public enum SyncPhase
     Copying,
     Deleting,
     Completed,
-    Failed
+    Failed,
+    Cancelled
 }
 
 public sealed class SyncProgress

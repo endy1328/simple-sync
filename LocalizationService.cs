@@ -20,6 +20,7 @@ public sealed class LocalizationService
             ["ko-KR"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["app.title"] = "simple sync",
+                ["menu.settings"] = "설정",
                 ["app.title_debug"] = "simple sync (Debug)",
                 ["app.subtitle"] = "로컬 및 네트워크 폴더 단방향 파일 동기화",
                 ["toolbar.every"] = "매",
@@ -31,6 +32,9 @@ public sealed class LocalizationService
                 ["toolbar.choose_source"] = "소스 선택",
                 ["toolbar.choose_target"] = "타겟 선택",
                 ["toolbar.edit_filter"] = "필터 편집",
+                ["toolbar.google_accounts"] = "구글 계정",
+                ["toolbar.connection"] = "연결 설정",
+                ["toolbar.cancel_sync"] = "동기화 중지",
                 ["toolbar.skin"] = "스킨",
                 ["toolbar.language"] = "언어",
                 ["section.sync_pairs"] = "동기화 쌍",
@@ -58,6 +62,8 @@ public sealed class LocalizationService
                 ["activity.status.deleting"] = "삭제 중",
                 ["activity.status.done"] = "완료",
                 ["activity.status.failed"] = "실패",
+                ["activity.status.cancelled"] = "중지됨",
+                ["progress.cancelled"] = "중지됨",
                 ["activity.no_targets"] = "대상이 없습니다.",
                 ["activity.already_running"] = "이미 동기화가 실행 중입니다.",
                 ["activity.manual_reason"] = "수동 실행",
@@ -112,6 +118,7 @@ public sealed class LocalizationService
             ["en-US"] = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["app.title"] = "simple sync",
+                ["menu.settings"] = "Settings",
                 ["app.title_debug"] = "simple sync (Debug)",
                 ["app.subtitle"] = "One-way file synchronization for local and network folders",
                 ["toolbar.every"] = "Every",
@@ -123,6 +130,9 @@ public sealed class LocalizationService
                 ["toolbar.choose_source"] = "Choose Source",
                 ["toolbar.choose_target"] = "Choose Target",
                 ["toolbar.edit_filter"] = "Edit Filter...",
+                ["toolbar.google_accounts"] = "Google accounts",
+                ["toolbar.connection"] = "Connection...",
+                ["toolbar.cancel_sync"] = "Stop sync",
                 ["toolbar.skin"] = "Skin",
                 ["toolbar.language"] = "Language",
                 ["section.sync_pairs"] = "Sync pairs",
@@ -150,6 +160,8 @@ public sealed class LocalizationService
                 ["activity.status.deleting"] = "Deleting",
                 ["activity.status.done"] = "Done",
                 ["activity.status.failed"] = "Failed",
+                ["activity.status.cancelled"] = "Cancelled",
+                ["progress.cancelled"] = "Cancelled",
                 ["activity.no_targets"] = "No sync targets.",
                 ["activity.already_running"] = "Sync is already running.",
                 ["activity.manual_reason"] = "Manual sync",

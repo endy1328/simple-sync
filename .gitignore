@@ -25,3 +25,6 @@ config.toml
 
 # Extracted verification assets
 Assets/extracted-app-icon.png
+
+# others
+guides/

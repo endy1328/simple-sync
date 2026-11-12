@@ -29,7 +29,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
 $tag = "v$Version"
 
 if ([string]::IsNullOrWhiteSpace($InstallerPath)) {
-    $InstallerPath = Join-Path $repoRoot "dist\simple-sync-setup.exe"
+    $InstallerPath = Join-Path $repoRoot "dist\simple-sync-setup-$Version.exe"
 }
 elseif (-not [System.IO.Path]::IsPathRooted($InstallerPath)) {
     $InstallerPath = Join-Path $repoRoot $InstallerPath

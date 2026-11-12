@@ -23,7 +23,7 @@ public sealed class MainForm : Form
     private readonly SemaphoreSlim _syncLock = new(1, 1);
     private CancellationTokenSource _syncCancellation = new();
     private readonly NumericUpDown _intervalInput = new();
-    private readonly DataGridView _grid = new();
+    private readonly DataGridView _grid = new CellTextDataGridView();
     private readonly TextBox _log = new();
     private readonly ComboBox _activityFilterSelect = new();
     private readonly Label _currentStatusLabel = new();
@@ -33,9 +33,14 @@ public sealed class MainForm : Form
     private readonly Button _browseSourceButton = new();
     private readonly Button _browseTargetButton = new();
     private readonly Button _editFilterButton = new();
+    private readonly MenuStrip _menuBar = new();
+    private readonly ToolStripMenuItem _settingsMenu = new();
+    private readonly ToolStripMenuItem _accountsMenuItem = new();
+    private readonly ToolStripMenuItem _skinMenu = new();
+    private readonly ToolStripMenuItem _languageMenu = new();
+    private readonly Button _connectionButton = new();
+    private readonly Button _cancelSyncButton = new();
     private readonly CheckBox _autoSyncCheck = new();
-    private readonly ComboBox _skinSelect = new();
-    private readonly ComboBox _languageSelect = new();
     private readonly Label _statusLabel = new();
     private readonly Label _headerTitleLabel = new();
     private readonly Label _headerSubtitleLabel = new();
@@ -43,8 +48,6 @@ public sealed class MainForm : Form
     private readonly Label _activityTitleLabel = new();
     private readonly Label _everyLabel = new();
     private readonly Label _secondsLabel = new();
-    private readonly Label _skinLabel = new();
-    private readonly Label _languageLabel = new();
     private readonly List<Control> _surfaces = [];
     private readonly List<Label> _titleLabels = [];
     private readonly List<Label> _mutedLabels = [];
@@ -52,13 +55,14 @@ public sealed class MainForm : Form
     private readonly List<Button> _secondaryButtons = [];
     private readonly List<ComboBox> _comboBoxes = [];
     private readonly Dictionary<SyncPair, SyncProgress> _progressByPair = [];
+    private readonly Dictionary<string, string> _googleAccountLabels = new(StringComparer.Ordinal);
     private readonly List<ActivityEntry> _activityEntries = [];
     private readonly List<ModeOption> _modeOptions = [];
     private readonly string _appVersion = GetAppVersion();
     private readonly bool _isDebugBuild = IsDebugBuild();
     private List<FilterPreset> _filterPresets = FilterPreset.CreateDefaults();
     private AppSkin _currentSkin = AppSkins.Get(null);
-    private bool _isLoadingConfig;
+    private bool _isLoadingConfig = true;
     private bool _isApplyingLanguage;
     private bool _isBusy;
 
@@ -105,6 +109,7 @@ public sealed class MainForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         Controls.Add(root);
+        BuildMenuBar();
 
         root.Controls.Add(CreateHeader(), 0, 0);
 
@@ -112,7 +117,7 @@ public sealed class MainForm : Form
         {
             AutoSize = true,
             Dock = DockStyle.Fill,
-            WrapContents = false,
+            WrapContents = true,
             Padding = new Padding(12, 10, 12, 10),
             Margin = new Padding(0, 0, 0, 10)
         };
@@ -168,6 +173,12 @@ public sealed class MainForm : Form
         RegisterButton(_editFilterButton, primary: false);
         _editFilterButton.Click += (_, _) => EditSelectedFilter();
 
+        RegisterButton(_connectionButton, primary: false);
+        _connectionButton.Click += (_, _) => OpenDriveDialog(accountsOnly: false);
+        RegisterButton(_cancelSyncButton, primary: false);
+        _cancelSyncButton.Enabled = false;
+        _cancelSyncButton.Click += (_, _) => _syncCancellation.Cancel();
+
         ConfigureToolbarLabel(_everyLabel, new Padding(0, 7, 2, 0));
         toolbar.Controls.Add(_everyLabel);
         toolbar.Controls.Add(_intervalInput);
@@ -180,48 +191,9 @@ public sealed class MainForm : Form
         toolbar.Controls.Add(_browseSourceButton);
         toolbar.Controls.Add(_browseTargetButton);
         toolbar.Controls.Add(_editFilterButton);
+        toolbar.Controls.Add(_connectionButton);
+        toolbar.Controls.Add(_cancelSyncButton);
 
-        _skinSelect.DropDownStyle = ComboBoxStyle.DropDownList;
-        _skinSelect.Width = 150;
-        _skinSelect.Margin = new Padding(16, 2, 0, 0);
-        _comboBoxes.Add(_skinSelect);
-        foreach (var skin in AppSkins.All)
-        {
-            _skinSelect.Items.Add(skin);
-        }
-        _skinSelect.SelectedIndexChanged += (_, _) =>
-        {
-            if (!_isLoadingConfig && _skinSelect.SelectedItem is AppSkin skin)
-            {
-                ApplySkin(skin);
-                SaveConfig();
-            }
-        };
-        ConfigureToolbarLabel(_skinLabel, new Padding(16, 7, 2, 0));
-        toolbar.Controls.Add(_skinLabel);
-        toolbar.Controls.Add(_skinSelect);
-        _languageSelect.DropDownStyle = ComboBoxStyle.DropDownList;
-        _languageSelect.Width = 120;
-        _languageSelect.Margin = new Padding(16, 2, 0, 0);
-        _languageSelect.DisplayMember = nameof(LanguageOption.DisplayName);
-        _languageSelect.ValueMember = nameof(LanguageOption.Code);
-        _comboBoxes.Add(_languageSelect);
-        foreach (var language in LocalizationService.SupportedLanguages)
-        {
-            _languageSelect.Items.Add(language);
-        }
-        _languageSelect.SelectedIndexChanged += (_, _) =>
-        {
-            if (!_isLoadingConfig && !_isApplyingLanguage && _languageSelect.SelectedItem is LanguageOption language)
-            {
-                _localization.SetLanguage(language.Code);
-                ApplyLanguage();
-                SaveConfig();
-            }
-        };
-        ConfigureToolbarLabel(_languageLabel, new Padding(16, 7, 2, 0));
-        toolbar.Controls.Add(_languageLabel);
-        toolbar.Controls.Add(_languageSelect);
         root.Controls.Add(toolbar, 0, 1);
 
         _grid.AutoGenerateColumns = false;
@@ -290,6 +262,20 @@ public sealed class MainForm : Form
         };
         _grid.CellFormatting += (_, e) =>
         {
+            if (e.RowIndex >= 0 && _grid.Rows[e.RowIndex].DataBoundItem is SyncPair endpointPair &&
+                _grid.Columns[e.ColumnIndex].DataPropertyName is nameof(SyncPair.Source) or nameof(SyncPair.Target))
+            {
+                var isSource = _grid.Columns[e.ColumnIndex].DataPropertyName == nameof(SyncPair.Source);
+                if ((isSource ? endpointPair.SourceType : endpointPair.TargetType) == StorageTypes.GoogleDrive)
+                {
+                    var label = isSource ? endpointPair.SourceLabel : endpointPair.TargetLabel;
+                    var account = _googleAccountLabels.GetValueOrDefault(endpointPair.DriveAccountId,
+                        _localization.LanguageCode == "ko-KR" ? "계정 연결 필요" : "Account connection required");
+                    e.Value = $"Google Drive ({account}) / " + (string.IsNullOrEmpty(label) ? "My Drive" : label);
+                    e.FormattingApplied = true;
+                    return;
+                }
+            }
             if (_grid.Columns[e.ColumnIndex].Name == "Direction")
             {
                 e.Value = GetFlowSymbol(e.RowIndex);
@@ -312,6 +298,13 @@ public sealed class MainForm : Form
             }
         };
         _grid.CellPainting += GridCellPainting;
+        _grid.CellBeginEdit += (_, e) =>
+        {
+            if (_grid.Rows[e.RowIndex].DataBoundItem is not SyncPair pair) return;
+            var property = _grid.Columns[e.ColumnIndex].DataPropertyName;
+            if ((property == nameof(SyncPair.Source) && pair.SourceType == StorageTypes.GoogleDrive) ||
+                (property == nameof(SyncPair.Target) && pair.TargetType == StorageTypes.GoogleDrive)) e.Cancel = true;
+        };
         _grid.CellToolTipTextNeeded += GridCellToolTipTextNeeded;
         _grid.CellDoubleClick += (_, e) =>
         {
@@ -409,6 +402,40 @@ public sealed class MainForm : Form
         label.AutoSize = true;
         label.Padding = padding;
         _mutedLabels.Add(label);
+    }
+
+    private void BuildMenuBar()
+    {
+        _menuBar.Dock = DockStyle.Top;
+        _menuBar.Padding = new Padding(12, 4, 12, 4);
+        _menuBar.Items.Add(_settingsMenu);
+        _settingsMenu.DropDownItems.AddRange([_accountsMenuItem, new ToolStripSeparator(), _skinMenu, _languageMenu]);
+        _accountsMenuItem.Click += (_, _) => OpenDriveDialog(accountsOnly: true);
+        foreach (var skin in AppSkins.All)
+        {
+            var item = new ToolStripMenuItem(skin.DisplayName) { Tag = skin.Key };
+            item.Click += (_, _) =>
+            {
+                if (_isLoadingConfig) return;
+                ApplySkin(skin);
+                SaveConfig();
+            };
+            _skinMenu.DropDownItems.Add(item);
+        }
+        foreach (var language in LocalizationService.SupportedLanguages)
+        {
+            var item = new ToolStripMenuItem(language.DisplayName) { Tag = language.Code };
+            item.Click += (_, _) =>
+            {
+                if (_isLoadingConfig || _isApplyingLanguage) return;
+                _localization.SetLanguage(language.Code);
+                ApplyLanguage();
+                SaveConfig();
+            };
+            _languageMenu.DropDownItems.Add(item);
+        }
+        MainMenuStrip = _menuBar;
+        Controls.Add(_menuBar);
     }
 
     private Control CreateHeader()
@@ -567,6 +594,7 @@ public sealed class MainForm : Form
 
     private void GridKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_isBusy) return;
         if (!e.Control || e.KeyCode != Keys.V || !IsPathCell(_grid.CurrentCell))
         {
             return;
@@ -603,6 +631,7 @@ public sealed class MainForm : Form
 
     private void EditingTextBoxKeyDown(object? sender, KeyEventArgs e)
     {
+        if (_isBusy) return;
         if (!e.Control || e.KeyCode != Keys.V || sender is not TextBox textBox || !IsPathCell(_grid.CurrentCell))
         {
             return;
@@ -624,6 +653,9 @@ public sealed class MainForm : Form
     private static bool IsPathCell(DataGridViewCell? cell)
     {
         var propertyName = cell?.OwningColumn?.DataPropertyName;
+        if (cell?.OwningRow?.DataBoundItem is SyncPair pair &&
+            ((propertyName == nameof(SyncPair.Source) && pair.SourceType == StorageTypes.GoogleDrive) ||
+             (propertyName == nameof(SyncPair.Target) && pair.TargetType == StorageTypes.GoogleDrive))) return false;
         return propertyName is nameof(SyncPair.Source) or nameof(SyncPair.Target);
     }
 
@@ -732,6 +764,16 @@ public sealed class MainForm : Form
                 _pairs.Add(pair);
             }
 
+            if (_pairs.Any(pair => pair.SourceType == StorageTypes.GoogleDrive || pair.TargetType == StorageTypes.GoogleDrive))
+            {
+                try
+                {
+                    using var accounts = new GoogleAccountService();
+                    RefreshGoogleAccountLabels(accounts);
+                }
+                catch (Exception ex) { AppendLog(ex.Message, isError: true); }
+            }
+
             ApplyLanguage();
         }
         finally
@@ -825,11 +867,21 @@ public sealed class MainForm : Form
         _log.BackColor = skin.LogBackground;
         _log.ForeColor = skin.LogText;
 
-        var selectedIndex = AppSkins.All.ToList().FindIndex(item => item.Key == skin.Key);
-        if (selectedIndex >= 0 && _skinSelect.SelectedIndex != selectedIndex)
+        _menuBar.Renderer = new AppMenuRenderer(skin);
+        _menuBar.BackColor = skin.Surface;
+        _menuBar.ForeColor = skin.Text;
+        void StyleItems(ToolStripItemCollection items)
         {
-            _skinSelect.SelectedIndex = selectedIndex;
+            foreach (ToolStripItem item in items)
+            {
+                item.BackColor = skin.Surface;
+                item.ForeColor = skin.Text;
+                if (item is ToolStripMenuItem menu) StyleItems(menu.DropDownItems);
+            }
         }
+        StyleItems(_menuBar.Items);
+        foreach (var item in _skinMenu.DropDownItems.OfType<ToolStripMenuItem>())
+            item.Checked = item.Tag as string == skin.Key;
     }
 
     private void ApplyLanguage()
@@ -853,9 +905,13 @@ public sealed class MainForm : Form
             _removeButton.Text = _localization.Text("toolbar.remove");
             _browseSourceButton.Text = _localization.Text("toolbar.choose_source");
             _browseTargetButton.Text = _localization.Text("toolbar.choose_target");
+            _settingsMenu.Text = _localization.Text("menu.settings");
+            _accountsMenuItem.Text = _localization.Text("toolbar.google_accounts");
+            _connectionButton.Text = _localization.Text("toolbar.connection");
+            _cancelSyncButton.Text = _localization.Text("toolbar.cancel_sync");
             _editFilterButton.Text = _localization.Text("toolbar.edit_filter");
-            _skinLabel.Text = _localization.Text("toolbar.skin");
-            _languageLabel.Text = _localization.Text("toolbar.language");
+            _skinMenu.Text = _localization.Text("toolbar.skin");
+            _languageMenu.Text = _localization.Text("toolbar.language");
             _syncPairsTitleLabel.Text = _localization.Text("section.sync_pairs");
             _activityTitleLabel.Text = _localization.Text("section.activity");
 
@@ -955,14 +1011,8 @@ public sealed class MainForm : Form
 
     private void SelectCurrentLanguage()
     {
-        for (var i = 0; i < _languageSelect.Items.Count; i++)
-        {
-            if (_languageSelect.Items[i] is LanguageOption option && option.Code == _localization.LanguageCode)
-            {
-                _languageSelect.SelectedIndex = i;
-                return;
-            }
-        }
+        foreach (var item in _languageMenu.DropDownItems.OfType<ToolStripMenuItem>())
+            item.Checked = item.Tag as string == _localization.LanguageCode;
     }
 
     private void ConfigureTimer()
@@ -1030,7 +1080,7 @@ public sealed class MainForm : Form
 
                 foreach (var message in result.Messages)
                 {
-                    AppendLog(_localization.Format("activity.message", pairName, message), pair, IsErrorMessage(message));
+                    AppendLog(_localization.Format("activity.message", pairName, message), pair, result.FailedFiles > 0 || IsErrorMessage(message));
                 }
             }
         }
@@ -1089,8 +1139,15 @@ public sealed class MainForm : Form
 
     private void BrowseSelectedPath(bool isSource)
     {
+        if (_isBusy) return;
         if (_grid.CurrentRow?.DataBoundItem is not SyncPair pair)
         {
+            return;
+        }
+
+        if ((isSource ? pair.SourceType : pair.TargetType) == StorageTypes.GoogleDrive)
+        {
+            OpenDriveDialog(accountsOnly: false);
             return;
         }
 
@@ -1120,6 +1177,7 @@ public sealed class MainForm : Form
 
     private void EditSelectedFilter()
     {
+        if (_isBusy) return;
         if (_grid.CurrentRow?.DataBoundItem is not SyncPair pair)
         {
             return;
@@ -1144,7 +1202,49 @@ public sealed class MainForm : Form
     {
         _isBusy = busy;
         _nowButton.Enabled = !busy;
+        _cancelSyncButton.Enabled = busy;
+        _grid.ReadOnly = busy;
+        _accountsMenuItem.Enabled = !busy;
+        foreach (var button in new[] { _addButton, _removeButton, _browseSourceButton, _browseTargetButton,
+            _editFilterButton, _connectionButton }) button.Enabled = !busy;
         UpdateStatus();
+    }
+
+    private void OpenDriveDialog(bool accountsOnly)
+    {
+        if (_isBusy) return;
+        _timer.Stop();
+        try
+        {
+            _grid.EndEdit();
+            using var accounts = new GoogleAccountService();
+            if (accountsOnly)
+            {
+                using var dialog = new GoogleAccountsDialog(accounts, _localization);
+                dialog.ShowDialog(this);
+                RefreshGoogleAccountLabels(accounts);
+            }
+            else if (_grid.CurrentRow?.DataBoundItem is SyncPair pair)
+            {
+                using var dialog = new DrivePairDialog(pair, accounts, _localization);
+                var result = dialog.ShowDialog(this);
+                RefreshGoogleAccountLabels(accounts);
+                if (result == DialogResult.OK)
+                {
+                    _grid.Refresh();
+                    SaveConfig();
+                }
+            }
+        }
+        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Google Drive", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        finally { ConfigureTimer(); }
+    }
+
+    private void RefreshGoogleAccountLabels(GoogleAccountService accounts)
+    {
+        _googleAccountLabels.Clear();
+        foreach (var account in accounts.Accounts) _googleAccountLabels[account.Id] = account.Email;
+        _grid.Refresh();
     }
 
     private void UpdateStatus()
@@ -1170,7 +1270,8 @@ public sealed class MainForm : Form
 
     public static string FormatWindowTitle(bool isDebugBuild, LocalizationService localization)
     {
-        return localization.Text(isDebugBuild ? "app.title_debug" : "app.title");
+        var title = $"{localization.Text("app.title")} ({GetAppVersion()})";
+        return isDebugBuild ? $"{title} (Debug)" : title;
     }
 
     public static string FormatStatus(string appVersion, string status, bool isDebugBuild)
@@ -1309,6 +1410,7 @@ public sealed class MainForm : Form
             SyncPhase.Preparing => _localization.Text("progress.preparing"),
             SyncPhase.Completed => _localization.Text("progress.done"),
             SyncPhase.Failed => _localization.Text("progress.failed"),
+            SyncPhase.Cancelled => _localization.Text("progress.cancelled"),
             SyncPhase.Deleting => _localization.Text("progress.deleting"),
             _ when progress.TotalFiles is > 0 => $"{progress.ProcessedFiles} / {progress.TotalFiles}",
             _ when progress.CurrentFileTotalBytes is > 0 => $"{progress.CurrentFileBytes * 100 / progress.CurrentFileTotalBytes.Value}%",
@@ -1364,6 +1466,7 @@ public sealed class MainForm : Form
             SyncPhase.Deleting => localization.Text("activity.status.deleting"),
             SyncPhase.Completed => localization.Text("activity.status.done"),
             SyncPhase.Failed => localization.Text("activity.status.failed"),
+            SyncPhase.Cancelled => localization.Text("activity.status.cancelled"),
             _ => localization.Text("activity.status.idle")
         };
 

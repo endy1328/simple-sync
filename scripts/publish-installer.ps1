@@ -90,7 +90,7 @@ $iscc = Find-InnoCompiler
 if (-not $iscc) {
     Write-Host "Staging complete: $stagingDir"
     Write-Host "Inno Setup compiler ISCC.exe was not found."
-    Write-Host "Install Inno Setup 6, then run this script again to create dist\simple-sync-setup.exe."
+    Write-Host "Install Inno Setup 6, then run this script again to create dist\simple-sync-setup-$Version.exe."
     return
 }
 
@@ -107,4 +107,4 @@ if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup compiler failed with exit code $LASTEXITCODE"
 }
 
-Write-Host "Installer output: $(Join-Path $distDir 'simple-sync-setup.exe')"
+Write-Host "Installer output: $(Join-Path $distDir "simple-sync-setup-$Version.exe")"

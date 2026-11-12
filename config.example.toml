@@ -42,3 +42,27 @@ enabled = false
 mode = "mirror"
 source = "C:\\another-source"
 target = "D:\\another-backup"
+
+# Google Drive examples: import OAuth settings and connect accounts in the app first.
+# Select folders through Connection settings; use the account's stable reference ID.
+[[pairs]]
+name = "PC to My Drive"
+enabled = false
+mode = "copy"
+source_type = "local"
+target_type = "google_drive"
+source = "C:\\source"
+target = "DRIVE_FOLDER_ID"
+target_label = "My Drive/Backup"
+drive_account_id = "CONNECTED_ACCOUNT_ID"
+
+[[pairs]]
+name = "My Drive to PC"
+enabled = false
+mode = "copy"
+source_type = "google_drive"
+target_type = "local"
+source = "DRIVE_FOLDER_ID"
+source_label = "My Drive/Documents"
+target = "D:\\drive-downloads"
+drive_account_id = "CONNECTED_ACCOUNT_ID"
